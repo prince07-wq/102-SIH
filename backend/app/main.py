@@ -1,0 +1,69 @@
+"""
+main.py
+=======
+FastAPI application entry point for the MPLADS Risk Intelligence System.
+
+Responsibilities
+----------------
+- Create and configure the FastAPI application instance.
+- Register CORS middleware (allows local React dev server at port 5173).
+- Mount all API routers.
+
+What this file does NOT do
+--------------------------
+- No business logic.
+- No database connections.
+- No authentication.
+- No ML or risk calculation.
+"""
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.routes import projects, statistics
+
+# ---------------------------------------------------------------------------
+# Application instance
+# ---------------------------------------------------------------------------
+
+app = FastAPI(
+    title="MPLADS Risk Intelligence System",
+    description=(
+        "Backend API for the SIH 2026 MPLADS Risk Intelligence project. "
+        "Currently serves synthetic mock data. Real processed MPLADS/ML output "
+        "will replace the service layer without changing this API contract."
+    ),
+    version="0.1.0",
+)
+
+# ---------------------------------------------------------------------------
+# CORS — allow the local React dev server (Vite default port 5173)
+# ---------------------------------------------------------------------------
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=False,
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
+
+# ---------------------------------------------------------------------------
+# Routers
+# ---------------------------------------------------------------------------
+
+app.include_router(projects.router)
+app.include_router(statistics.router)
+
+
+# ---------------------------------------------------------------------------
+# Root health-check (optional convenience endpoint)
+# ---------------------------------------------------------------------------
+
+@app.get("/", tags=["health"])
+def root():
+    """Health check — confirms the API is running."""
+    return {
+        "status": "ok",
+        "message": "MPLADS Risk Intelligence API is running. Visit /docs for the interactive API reference.",
+    }
