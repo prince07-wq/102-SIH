@@ -1,0 +1,870 @@
+[
+  {
+    "projectId": "133166",
+    "workName": "Construction of Community Bhavan",
+    "description": "Construction of Community Bhavan at Navalgund for community gatherings and local events.",
+    "category": "Normal/Others",
+    "state": "Karnataka",
+    "constituency": "DHARWAD",
+    "mpName": "Pralhad Venkatesh Joshi",
+    "authority": "DHARWAD(DEPUTY COMMISSIONER DHARWAR_IDA)",
+    "recommendationDate": "2024-07-08",
+    "sanctionDate": "2024-07-09",
+    "sanctionAmount": 497185,
+    "workStage": "Physical Inspection",
+    "vendorName": "Navalgund Constructions Pvt Ltd",
+    "totalDisbursed": 350000,
+    "lastExpenditureDate": "2025-01-15",
+    "risk": {
+      "overallScore": 78,
+      "level": "HIGH",
+      "cost": {
+        "score": 82,
+        "flagged": true,
+        "reason": "Sanctioned cost is 1.8x higher than comparable works."
+      },
+      "delay": {
+        "score": 74,
+        "flagged": true,
+        "reason": "Project has remained incomplete longer than similar works."
+      },
+      "expenditure": {
+        "score": 69,
+        "flagged": true,
+        "reason": "High fund disbursement relative to current work stage."
+      },
+      "duplicate": {
+        "score": 21,
+        "flagged": false,
+        "reason": "No strong duplicate match found."
+      }
+    },
+    "similarProjects": [
+      {
+        "projectId": "182922",
+        "workName": "Construction of Community Hall",
+        "sanctionAmount": 275000,
+        "similarity": 0.89
+      }
+    ]
+  },
+  {
+    "projectId": "182922",
+    "workName": "Construction of Community Hall at Hubli",
+    "description": "Construction of Community Hall at Hubli for public use and community functions.",
+    "category": "Normal/Others",
+    "state": "Karnataka",
+    "constituency": "DHARWAD",
+    "mpName": "Pralhad Venkatesh Joshi",
+    "authority": "DHARWAD(DEPUTY COMMISSIONER DHARWAR_IDA)",
+    "recommendationDate": "2024-03-12",
+    "sanctionDate": "2024-03-15",
+    "sanctionAmount": 275000,
+    "workStage": "Completed",
+    "vendorName": "Hubli Infra Works",
+    "totalDisbursed": 275000,
+    "lastExpenditureDate": "2024-12-01",
+    "risk": {
+      "overallScore": 22,
+      "level": "LOW",
+      "cost": {
+        "score": 18,
+        "flagged": false,
+        "reason": "Cost is consistent with similar works in the region."
+      },
+      "delay": {
+        "score": 15,
+        "flagged": false,
+        "reason": "Project completed within expected time."
+      },
+      "expenditure": {
+        "score": 20,
+        "flagged": false,
+        "reason": "Expenditure matches completion stage."
+      },
+      "duplicate": {
+        "score": 30,
+        "flagged": false,
+        "reason": "Slight similarity to Community Bhavan project detected."
+      }
+    },
+    "similarProjects": [
+      {
+        "projectId": "133166",
+        "workName": "Construction of Community Bhavan",
+        "sanctionAmount": 497185,
+        "similarity": 0.89
+      }
+    ]
+  },
+  {
+    "projectId": "201045",
+    "workName": "Repair of Rural Road — Palghat to Mannarkkad",
+    "description": "Resurfacing and repair of 4.2 km rural road connecting Palghat to Mannarkkad.",
+    "category": "Roads",
+    "state": "Kerala",
+    "constituency": "PALAKKAD",
+    "mpName": "V. K. Sreekandan",
+    "authority": "PALAKKAD(DISTRICT COLLECTOR)",
+    "recommendationDate": "2023-11-20",
+    "sanctionDate": "2023-11-25",
+    "sanctionAmount": 1200000,
+    "workStage": "Work in Progress",
+    "vendorName": "Kerala Road Works Ltd",
+    "totalDisbursed": 900000,
+    "lastExpenditureDate": "2024-08-10",
+    "risk": {
+      "overallScore": 71,
+      "level": "HIGH",
+      "cost": {
+        "score": 75,
+        "flagged": true,
+        "reason": "Per-kilometre cost significantly exceeds district benchmark."
+      },
+      "delay": {
+        "score": 80,
+        "flagged": true,
+        "reason": "Project overdue by 14 months; monsoon cited but not documented."
+      },
+      "expenditure": {
+        "score": 60,
+        "flagged": false,
+        "reason": "Disbursement rate acceptable for current stage."
+      },
+      "duplicate": {
+        "score": 10,
+        "flagged": false,
+        "reason": "No similar road project found in constituency."
+      }
+    },
+    "similarProjects": []
+  },
+  {
+    "projectId": "215580",
+    "workName": "Solar Street Lights — Varanasi Ward 14",
+    "description": "Installation of 120 solar-powered LED street lights in Ward 14, Varanasi.",
+    "category": "Energy",
+    "state": "Uttar Pradesh",
+    "constituency": "VARANASI",
+    "mpName": "Narendra Modi",
+    "authority": "VARANASI(NAGAR NIGAM)",
+    "recommendationDate": "2024-01-05",
+    "sanctionDate": "2024-01-10",
+    "sanctionAmount": 840000,
+    "workStage": "Completed",
+    "vendorName": "SunBright Solar Pvt Ltd",
+    "totalDisbursed": 840000,
+    "lastExpenditureDate": "2024-09-30",
+    "risk": {
+      "overallScore": 19,
+      "level": "LOW",
+      "cost": {
+        "score": 22,
+        "flagged": false,
+        "reason": "Unit cost per streetlight is within state average."
+      },
+      "delay": {
+        "score": 12,
+        "flagged": false,
+        "reason": "Project completed 2 months ahead of schedule."
+      },
+      "expenditure": {
+        "score": 25,
+        "flagged": false,
+        "reason": "Expenditure aligns with completed stage."
+      },
+      "duplicate": {
+        "score": 15,
+        "flagged": false,
+        "reason": "No duplicate project detected."
+      }
+    },
+    "similarProjects": []
+  },
+  {
+    "projectId": "228834",
+    "workName": "Drinking Water Supply Scheme — Aurangabad Rural",
+    "description": "Pipeline extension and overhead tank construction for 6 villages in Aurangabad rural block.",
+    "category": "Drinking Water",
+    "state": "Maharashtra",
+    "constituency": "AURANGABAD",
+    "mpName": "Imtiaz Jaleel",
+    "authority": "AURANGABAD(ZILLA PARISHAD WATER SUPPLY)",
+    "recommendationDate": "2023-06-01",
+    "sanctionDate": "2023-06-18",
+    "sanctionAmount": 3500000,
+    "workStage": "Tendering",
+    "vendorName": "TBD",
+    "totalDisbursed": 700000,
+    "lastExpenditureDate": "2023-12-01",
+    "risk": {
+      "overallScore": 55,
+      "level": "MEDIUM",
+      "cost": {
+        "score": 50,
+        "flagged": false,
+        "reason": "Cost is slightly high but within acceptable range."
+      },
+      "delay": {
+        "score": 68,
+        "flagged": true,
+        "reason": "Still in tendering phase after 18 months."
+      },
+      "expenditure": {
+        "score": 40,
+        "flagged": false,
+        "reason": "Low disbursement appropriate given tendering stage."
+      },
+      "duplicate": {
+        "score": 20,
+        "flagged": false,
+        "reason": "No duplicate scheme found."
+      }
+    },
+    "similarProjects": []
+  },
+  {
+    "projectId": "237001",
+    "workName": "Construction of Anganwadi Centre — Betul Block",
+    "description": "New Anganwadi centre building for early childhood care in Betul Block.",
+    "category": "Education/Child Welfare",
+    "state": "Madhya Pradesh",
+    "constituency": "BETUL",
+    "mpName": "Durgadas Uikey",
+    "authority": "BETUL(DISTRICT COLLECTOR)",
+    "recommendationDate": "2024-02-14",
+    "sanctionDate": "2024-02-20",
+    "sanctionAmount": 450000,
+    "workStage": "Foundation Laid",
+    "vendorName": "MP Infra Builders",
+    "totalDisbursed": 200000,
+    "lastExpenditureDate": "2024-06-01",
+    "risk": {
+      "overallScore": 38,
+      "level": "LOW",
+      "cost": {
+        "score": 35,
+        "flagged": false,
+        "reason": "Sanctioned amount reasonable for construction type."
+      },
+      "delay": {
+        "score": 40,
+        "flagged": false,
+        "reason": "Slight delay due to rainy season; within tolerance."
+      },
+      "expenditure": {
+        "score": 38,
+        "flagged": false,
+        "reason": "Disbursement matches construction stage."
+      },
+      "duplicate": {
+        "score": 12,
+        "flagged": false,
+        "reason": "No duplicate Anganwadi project in vicinity."
+      }
+    },
+    "similarProjects": []
+  },
+  {
+    "projectId": "241987",
+    "workName": "Construction of Panchayat Office — Bijapur",
+    "description": "Construction of a new Gram Panchayat office building at Bijapur.",
+    "category": "Normal/Others",
+    "state": "Karnataka",
+    "constituency": "BIJAPUR",
+    "mpName": "Ramesh Jigajinagi",
+    "authority": "BIJAPUR(DISTRICT PANCHAYAT RAJ OFFICE)",
+    "recommendationDate": "2023-09-10",
+    "sanctionDate": "2023-09-15",
+    "sanctionAmount": 620000,
+    "workStage": "Completed",
+    "vendorName": "Bijapur Civil Works",
+    "totalDisbursed": 620000,
+    "lastExpenditureDate": "2024-04-10",
+    "risk": {
+      "overallScore": 25,
+      "level": "LOW",
+      "cost": {
+        "score": 28,
+        "flagged": false,
+        "reason": "Cost comparable to similar panchayat office construction."
+      },
+      "delay": {
+        "score": 20,
+        "flagged": false,
+        "reason": "Completed on time."
+      },
+      "expenditure": {
+        "score": 25,
+        "flagged": false,
+        "reason": "Full disbursement matches completed status."
+      },
+      "duplicate": {
+        "score": 15,
+        "flagged": false,
+        "reason": "No duplicate detected."
+      }
+    },
+    "similarProjects": []
+  },
+  {
+    "projectId": "255113",
+    "workName": "Bore Well Drilling — Rajnandgaon District",
+    "description": "Drilling of 15 bore wells across 8 villages in Rajnandgaon for drinking water access.",
+    "category": "Drinking Water",
+    "state": "Chhattisgarh",
+    "constituency": "RAJNANDGAON",
+    "mpName": "Santosh Pandey",
+    "authority": "RAJNANDGAON(PHE DEPT)",
+    "recommendationDate": "2024-03-01",
+    "sanctionDate": "2024-03-10",
+    "sanctionAmount": 750000,
+    "workStage": "Work in Progress",
+    "vendorName": "CG Drilling Services",
+    "totalDisbursed": 600000,
+    "lastExpenditureDate": "2025-02-01",
+    "risk": {
+      "overallScore": 73,
+      "level": "HIGH",
+      "cost": {
+        "score": 70,
+        "flagged": true,
+        "reason": "Per-bore-well cost 40% above state average."
+      },
+      "delay": {
+        "score": 65,
+        "flagged": false,
+        "reason": "Minor delay; within acceptable variance."
+      },
+      "expenditure": {
+        "score": 78,
+        "flagged": true,
+        "reason": "80% funds disbursed with only 60% physical completion."
+      },
+      "duplicate": {
+        "score": 45,
+        "flagged": false,
+        "reason": "Some overlap with PHE bore well scheme in same villages."
+      }
+    },
+    "similarProjects": [
+      {
+        "projectId": "255889",
+        "workName": "PHE Bore Well Scheme — Rajnandgaon",
+        "sanctionAmount": 680000,
+        "similarity": 0.72
+      }
+    ]
+  },
+  {
+    "projectId": "255889",
+    "workName": "PHE Bore Well Scheme — Rajnandgaon",
+    "description": "Public Health Engineering bore well scheme for 6 villages in Rajnandgaon.",
+    "category": "Drinking Water",
+    "state": "Chhattisgarh",
+    "constituency": "RAJNANDGAON",
+    "mpName": "Santosh Pandey",
+    "authority": "RAJNANDGAON(PHE DEPT)",
+    "recommendationDate": "2024-02-15",
+    "sanctionDate": "2024-02-20",
+    "sanctionAmount": 680000,
+    "workStage": "Work in Progress",
+    "vendorName": "CG Drilling Services",
+    "totalDisbursed": 550000,
+    "lastExpenditureDate": "2025-01-20",
+    "risk": {
+      "overallScore": 82,
+      "level": "HIGH",
+      "cost": {
+        "score": 76,
+        "flagged": true,
+        "reason": "Near-identical scope and amount to project 255113 in same constituency."
+      },
+      "delay": {
+        "score": 60,
+        "flagged": false,
+        "reason": "Progressing but slower than expected."
+      },
+      "expenditure": {
+        "score": 71,
+        "flagged": true,
+        "reason": "High disbursement ratio given work stage."
+      },
+      "duplicate": {
+        "score": 88,
+        "flagged": true,
+        "reason": "Very high similarity to MPLADS project 255113 — same vendor, area, and scope."
+      }
+    },
+    "similarProjects": [
+      {
+        "projectId": "255113",
+        "workName": "Bore Well Drilling — Rajnandgaon District",
+        "sanctionAmount": 750000,
+        "similarity": 0.93
+      }
+    ]
+  },
+  {
+    "projectId": "267440",
+    "workName": "Renovation of Government Primary School — Ajmer",
+    "description": "Renovation of two Government Primary School buildings in Ajmer including roof repair and painting.",
+    "category": "Education",
+    "state": "Rajasthan",
+    "constituency": "AJMER",
+    "mpName": "Bhagirath Choudhary",
+    "authority": "AJMER(DISTRICT EDUCATION OFFICER)",
+    "recommendationDate": "2024-05-10",
+    "sanctionDate": "2024-05-18",
+    "sanctionAmount": 380000,
+    "workStage": "Completed",
+    "vendorName": "Ajmer Renovation Works",
+    "totalDisbursed": 375000,
+    "lastExpenditureDate": "2024-11-15",
+    "risk": {
+      "overallScore": 18,
+      "level": "LOW",
+      "cost": {
+        "score": 20,
+        "flagged": false,
+        "reason": "Renovation cost is within expected range."
+      },
+      "delay": {
+        "score": 15,
+        "flagged": false,
+        "reason": "Completed within estimated timeline."
+      },
+      "expenditure": {
+        "score": 18,
+        "flagged": false,
+        "reason": "Full disbursement consistent with completion."
+      },
+      "duplicate": {
+        "score": 10,
+        "flagged": false,
+        "reason": "No duplicate project detected."
+      }
+    },
+    "similarProjects": []
+  },
+  {
+    "projectId": "278802",
+    "workName": "Construction of Toilet Block — Koraput Tribal Area",
+    "description": "Construction of separate toilet blocks for boys and girls at tribal residential school, Koraput.",
+    "category": "Sanitation",
+    "state": "Odisha",
+    "constituency": "KORAPUT",
+    "mpName": "Saptagiri Sankar Ulaka",
+    "authority": "KORAPUT(DISTRICT EDUCATION DEPT)",
+    "recommendationDate": "2024-06-01",
+    "sanctionDate": "2024-06-05",
+    "sanctionAmount": 320000,
+    "workStage": "Foundation Laid",
+    "vendorName": "Odisha Sanitation Works",
+    "totalDisbursed": 280000,
+    "lastExpenditureDate": "2024-10-10",
+    "risk": {
+      "overallScore": 62,
+      "level": "MEDIUM",
+      "cost": {
+        "score": 58,
+        "flagged": false,
+        "reason": "Cost slightly above average but within acceptable limits."
+      },
+      "delay": {
+        "score": 55,
+        "flagged": false,
+        "reason": "Some delay but reasonable given remote location."
+      },
+      "expenditure": {
+        "score": 72,
+        "flagged": true,
+        "reason": "88% of funds disbursed with only foundation laid."
+      },
+      "duplicate": {
+        "score": 10,
+        "flagged": false,
+        "reason": "No duplicate sanitation project found."
+      }
+    },
+    "similarProjects": []
+  },
+  {
+    "projectId": "289115",
+    "workName": "Repair and Widening of Market Road — Coimbatore",
+    "description": "Widening and resurfacing of 2.8 km market access road in Coimbatore South.",
+    "category": "Roads",
+    "state": "Tamil Nadu",
+    "constituency": "COIMBATORE",
+    "mpName": "P. R. Natarajan",
+    "authority": "COIMBATORE(MUNICIPAL CORPORATION)",
+    "recommendationDate": "2023-08-20",
+    "sanctionDate": "2023-09-01",
+    "sanctionAmount": 1800000,
+    "workStage": "Work in Progress",
+    "vendorName": "TN Roads & Infrastructure Co.",
+    "totalDisbursed": 1350000,
+    "lastExpenditureDate": "2025-01-05",
+    "risk": {
+      "overallScore": 47,
+      "level": "MEDIUM",
+      "cost": {
+        "score": 52,
+        "flagged": false,
+        "reason": "Per-km cost is at the upper boundary but acceptable."
+      },
+      "delay": {
+        "score": 58,
+        "flagged": false,
+        "reason": "Behind schedule by 6 months; utility shifting cited."
+      },
+      "expenditure": {
+        "score": 44,
+        "flagged": false,
+        "reason": "Disbursement proportionate to progress."
+      },
+      "duplicate": {
+        "score": 22,
+        "flagged": false,
+        "reason": "No duplicate road project found."
+      }
+    },
+    "similarProjects": []
+  },
+  {
+    "projectId": "301234",
+    "workName": "Rural Library Setup — Nandurbar",
+    "description": "Establishment of a digital rural library with computer access at Nandurbar.",
+    "category": "Education",
+    "state": "Maharashtra",
+    "constituency": "NANDURBAR",
+    "mpName": "Heena Gavit",
+    "authority": "NANDURBAR(DISTRICT LIBRARY COMMITTEE)",
+    "recommendationDate": "2024-04-01",
+    "sanctionDate": "2024-04-08",
+    "sanctionAmount": 260000,
+    "workStage": "Completed",
+    "vendorName": "DigiLearn India",
+    "totalDisbursed": 260000,
+    "lastExpenditureDate": "2024-10-01",
+    "risk": {
+      "overallScore": 20,
+      "level": "LOW",
+      "cost": {
+        "score": 22,
+        "flagged": false,
+        "reason": "Cost consistent with similar digital library projects."
+      },
+      "delay": {
+        "score": 14,
+        "flagged": false,
+        "reason": "Completed on schedule."
+      },
+      "expenditure": {
+        "score": 18,
+        "flagged": false,
+        "reason": "Full disbursement matches completed status."
+      },
+      "duplicate": {
+        "score": 25,
+        "flagged": false,
+        "reason": "No duplicate project found."
+      }
+    },
+    "similarProjects": []
+  },
+  {
+    "projectId": "313678",
+    "workName": "Boundary Wall — Government Hospital Raipur",
+    "description": "Construction of boundary wall and gate for Government District Hospital, Raipur.",
+    "category": "Health",
+    "state": "Chhattisgarh",
+    "constituency": "RAIPUR",
+    "mpName": "Sunil Kumar Soni",
+    "authority": "RAIPUR(CHIEF MEDICAL & HEALTH OFFICER)",
+    "recommendationDate": "2024-01-20",
+    "sanctionDate": "2024-01-25",
+    "sanctionAmount": 900000,
+    "workStage": "Work in Progress",
+    "vendorName": "Raipur Civil Constructions",
+    "totalDisbursed": 810000,
+    "lastExpenditureDate": "2025-02-10",
+    "risk": {
+      "overallScore": 86,
+      "level": "HIGH",
+      "cost": {
+        "score": 88,
+        "flagged": true,
+        "reason": "Cost is 2.2x higher than comparable boundary wall projects."
+      },
+      "delay": {
+        "score": 79,
+        "flagged": true,
+        "reason": "Still in progress after 13 months with no substantial completion."
+      },
+      "expenditure": {
+        "score": 82,
+        "flagged": true,
+        "reason": "90% disbursed with project far from complete."
+      },
+      "duplicate": {
+        "score": 18,
+        "flagged": false,
+        "reason": "No duplicate project found."
+      }
+    },
+    "similarProjects": []
+  },
+  {
+    "projectId": "324501",
+    "workName": "Installation of RO Water Purifier — Jaisalmer Schools",
+    "description": "Supply and installation of RO water purifiers in 20 government schools across Jaisalmer.",
+    "category": "Drinking Water",
+    "state": "Rajasthan",
+    "constituency": "JAISALMER",
+    "mpName": "Brijendra Ola",
+    "authority": "JAISALMER(DISTRICT EDUCATION OFFICE)",
+    "recommendationDate": "2024-07-15",
+    "sanctionDate": "2024-07-20",
+    "sanctionAmount": 480000,
+    "workStage": "Completed",
+    "vendorName": "AquaPure Systems",
+    "totalDisbursed": 478000,
+    "lastExpenditureDate": "2024-12-20",
+    "risk": {
+      "overallScore": 28,
+      "level": "LOW",
+      "cost": {
+        "score": 30,
+        "flagged": false,
+        "reason": "Unit cost per purifier within market range."
+      },
+      "delay": {
+        "score": 22,
+        "flagged": false,
+        "reason": "Completed within the sanctioned timeline."
+      },
+      "expenditure": {
+        "score": 28,
+        "flagged": false,
+        "reason": "Disbursement consistent with completion."
+      },
+      "duplicate": {
+        "score": 30,
+        "flagged": false,
+        "reason": "No duplicate scheme found."
+      }
+    },
+    "similarProjects": []
+  },
+  {
+    "projectId": "336720",
+    "workName": "Renovation of Sports Ground — Agartala",
+    "description": "Renovation and levelling of government sports ground at Agartala town.",
+    "category": "Sports",
+    "state": "Tripura",
+    "constituency": "TRIPURA EAST",
+    "mpName": "Rebati Tripura",
+    "authority": "AGARTALA(SPORTS DEPT TRIPURA)",
+    "recommendationDate": "2023-12-01",
+    "sanctionDate": "2023-12-10",
+    "sanctionAmount": 550000,
+    "workStage": "Tendering",
+    "vendorName": "TBD",
+    "totalDisbursed": 55000,
+    "lastExpenditureDate": "2024-02-01",
+    "risk": {
+      "overallScore": 58,
+      "level": "MEDIUM",
+      "cost": {
+        "score": 45,
+        "flagged": false,
+        "reason": "Cost within acceptable range for sports ground renovation."
+      },
+      "delay": {
+        "score": 72,
+        "flagged": true,
+        "reason": "Still at tendering after 18 months; no contractor selected."
+      },
+      "expenditure": {
+        "score": 30,
+        "flagged": false,
+        "reason": "Very low disbursement appropriate at tendering stage."
+      },
+      "duplicate": {
+        "score": 15,
+        "flagged": false,
+        "reason": "No similar sports project in constituency."
+      }
+    },
+    "similarProjects": []
+  },
+  {
+    "projectId": "348055",
+    "workName": "Construction of Toilet Block — Government School Surat",
+    "description": "Construction of toilet block for a government secondary school in Surat city.",
+    "category": "Sanitation",
+    "state": "Gujarat",
+    "constituency": "SURAT",
+    "mpName": "Darshana Vikram Jardosh",
+    "authority": "SURAT(SURAT MUNICIPAL CORPORATION)",
+    "recommendationDate": "2024-03-18",
+    "sanctionDate": "2024-03-25",
+    "sanctionAmount": 290000,
+    "workStage": "Completed",
+    "vendorName": "Surat Construction Group",
+    "totalDisbursed": 289000,
+    "lastExpenditureDate": "2024-09-15",
+    "risk": {
+      "overallScore": 16,
+      "level": "LOW",
+      "cost": {
+        "score": 18,
+        "flagged": false,
+        "reason": "Cost in line with similar school sanitation works."
+      },
+      "delay": {
+        "score": 12,
+        "flagged": false,
+        "reason": "Completed 3 weeks ahead of schedule."
+      },
+      "expenditure": {
+        "score": 15,
+        "flagged": false,
+        "reason": "Disbursement matches completed status."
+      },
+      "duplicate": {
+        "score": 20,
+        "flagged": false,
+        "reason": "No duplicate sanitation project found."
+      }
+    },
+    "similarProjects": []
+  },
+  {
+    "projectId": "361199",
+    "workName": "Cattle Shed Construction — Rae Bareli Rural",
+    "description": "Construction of a community cattle shed for 150 livestock in Rae Bareli rural block.",
+    "category": "Agriculture/Animal Husbandry",
+    "state": "Uttar Pradesh",
+    "constituency": "RAE BARELI",
+    "mpName": "Sonia Gandhi",
+    "authority": "RAE BARELI(DISTRICT ANIMAL HUSBANDRY DEPT)",
+    "recommendationDate": "2023-10-05",
+    "sanctionDate": "2023-10-12",
+    "sanctionAmount": 780000,
+    "workStage": "Physical Inspection",
+    "vendorName": "UP Rural Infra Pvt Ltd",
+    "totalDisbursed": 600000,
+    "lastExpenditureDate": "2024-11-20",
+    "risk": {
+      "overallScore": 66,
+      "level": "MEDIUM",
+      "cost": {
+        "score": 62,
+        "flagged": false,
+        "reason": "Cost is moderately high; partially explained by remote site."
+      },
+      "delay": {
+        "score": 70,
+        "flagged": true,
+        "reason": "Physical inspection stage reached 14 months after sanction."
+      },
+      "expenditure": {
+        "score": 65,
+        "flagged": false,
+        "reason": "Disbursement elevated but within tolerance."
+      },
+      "duplicate": {
+        "score": 20,
+        "flagged": false,
+        "reason": "No duplicate animal husbandry project found."
+      }
+    },
+    "similarProjects": []
+  },
+  {
+    "projectId": "375410",
+    "workName": "Construction of Cremation Shed — Nashik",
+    "description": "Construction of covered cremation shed and platform at municipal cremation ground, Nashik.",
+    "category": "Normal/Others",
+    "state": "Maharashtra",
+    "constituency": "NASHIK",
+    "mpName": "Hemant Godse",
+    "authority": "NASHIK(MUNICIPAL COUNCIL NASHIK)",
+    "recommendationDate": "2024-05-01",
+    "sanctionDate": "2024-05-08",
+    "sanctionAmount": 430000,
+    "workStage": "Work in Progress",
+    "vendorName": "Nashik Civil Works",
+    "totalDisbursed": 200000,
+    "lastExpenditureDate": "2024-12-15",
+    "risk": {
+      "overallScore": 42,
+      "level": "MEDIUM",
+      "cost": {
+        "score": 40,
+        "flagged": false,
+        "reason": "Cost reasonable for cremation shed construction."
+      },
+      "delay": {
+        "score": 48,
+        "flagged": false,
+        "reason": "Moderate delay due to material supply issues."
+      },
+      "expenditure": {
+        "score": 38,
+        "flagged": false,
+        "reason": "Disbursement proportionate to current work stage."
+      },
+      "duplicate": {
+        "score": 42,
+        "flagged": false,
+        "reason": "Similar project in adjacent constituency but separate sanction."
+      }
+    },
+    "similarProjects": []
+  },
+  {
+    "projectId": "389922",
+    "workName": "Footpath and Drainage — Tirunelveli Ward 7",
+    "description": "Construction of footpath and open drainage channel in Ward 7, Tirunelveli municipality.",
+    "category": "Roads",
+    "state": "Tamil Nadu",
+    "constituency": "TIRUNELVELI",
+    "mpName": "Gnanadhiraviam Shanmugam",
+    "authority": "TIRUNELVELI(MUNICIPAL CORPORATION)",
+    "recommendationDate": "2024-02-10",
+    "sanctionDate": "2024-02-18",
+    "sanctionAmount": 560000,
+    "workStage": "Completed",
+    "vendorName": "TN Civil Projects Co.",
+    "totalDisbursed": 558000,
+    "lastExpenditureDate": "2025-01-01",
+    "risk": {
+      "overallScore": 21,
+      "level": "LOW",
+      "cost": {
+        "score": 25,
+        "flagged": false,
+        "reason": "Cost per metre within municipal norms."
+      },
+      "delay": {
+        "score": 18,
+        "flagged": false,
+        "reason": "Completed within sanctioned period."
+      },
+      "expenditure": {
+        "score": 22,
+        "flagged": false,
+        "reason": "Near-full disbursement matches completed stage."
+      },
+      "duplicate": {
+        "score": 14,
+        "flagged": false,
+        "reason": "No duplicate project found."
+      }
+    },
+    "similarProjects": []
+  }
+]
