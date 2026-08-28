@@ -14,8 +14,7 @@ Tests cover:
   - GET /api/statistics          (dynamic consistency check)
 """
 
-import pytest
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient  # type: ignore
 
 from app.main import app
 
