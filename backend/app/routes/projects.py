@@ -10,38 +10,40 @@ response types).  All data access and filtering is delegated to
 project_service.py.  This layer does NOT read projects.json directly.
 """
 
+from enum import Enum
 from typing import Optional
-
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query  # type: ignore
 
 from app.schemas.project import ProjectListResponse, ProjectRecord
 from app.services import project_service
+
+
+class RiskLevel(str, Enum):
+  LOW = "LOW"
+  MEDIUM = "MEDIUM"
+  HIGH = "HIGH"
+
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
 
 @router.get("", response_model=ProjectListResponse)
 def list_projects(
-    risk: Optional[str] = Query(
-        default=None,
-        description="Filter by risk level: LOW | MEDIUM | HIGH",
+    risk: Optional[RiskLevel] = Query(
+        default=None, description="Filter by risk level: LOW, MEDIUM, or HIGH"
     ),
-    state: Optional[str] = Query(
-        default=None,
-        description="Filter by state name (case-insensitive).",
-    ),
+    state: Optional[str] = Query(default=None, description="Filter by state"),
 ):
-    """
-    GET /api/projects
+  """GET /api/projects
 
-    Return all project records.  Supports optional query-string filters:
+  Return all project records. Supports optional query-string filters:
 
-    - **risk**  : LOW | MEDIUM | HIGH
-    - **state** : state name (e.g. Karnataka)
+  - **risk**   : LOW | MEDIUM | HIGH
+  - **state**  : state name (e.g. Karnataka)
 
-    Both filters can be combined:  /api/projects?risk=HIGH&state=Karnataka
-    """
-    return project_service.get_all_projects(risk=risk, state=state)
+  Both filters can be combined: /api/projects?risk=HIGH&state=Karnataka
+  """
+  return project_service.get_all_projects(risk=risk, state=state)
 
 
 @router.get("/{project_id}", response_model=ProjectRecord)
