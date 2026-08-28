@@ -9,8 +9,7 @@ Route functions handle ONLY HTTP concerns.  All data access and
 aggregation logic is delegated to project_service.py.
 """
 
-from fastapi import APIRouter
-
+from fastapi import APIRouter  # type: ignore
 from app.schemas.project import AlertsResponse, StatisticsResponse
 from app.services import project_service
 
