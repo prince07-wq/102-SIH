@@ -1,0 +1,66 @@
+.insights {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 18px 18px 16px;
+  box-shadow: var(--shadow-xs);
+  height: 100%;
+}
+
+.insights__list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.insights__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 11px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-panel);
+}
+
+.insights__icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.insights__icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+.insights__item--cost .insights__icon {
+  background: var(--risk-high-bg);
+  color: var(--risk-high);
+}
+.insights__item--delay .insights__icon {
+  background: var(--risk-medium-bg);
+  color: var(--risk-medium);
+}
+.insights__item--expenditure .insights__icon {
+  background: var(--info-bg);
+  color: var(--info);
+}
+.insights__item--duplicate .insights__icon {
+  background: var(--risk-low-bg);
+  color: var(--risk-low);
+}
+
+.insights__text {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin: 0;
+}
