@@ -1,20 +1,9 @@
 """
 tests/test_api.py
-==================
-Basic pytest test suite for the MPLADS Risk Intelligence System API.
-
-Tests cover:
-  - GET /api/projects            (all projects)
-  - GET /api/projects/{id}       (single project)
-  - GET /api/projects/nonexistent → 404
-  - GET /api/projects?risk=HIGH  (risk filter)
-  - GET /api/projects?state=Karnataka  (state filter)
-  - GET /api/projects?risk=HIGH&state=Karnataka  (combined filter)
-  - GET /api/alerts
-  - GET /api/statistics          (dynamic consistency check)
+=================
+API tests against the processed MPLADS project and risk dataset.
 """
 
-import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -22,11 +11,8 @@ from app.main import app
 client = TestClient(app)
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 def get_json(path: str, expected_status: int = 200):
+    """Requests JSON and checks the expected HTTP status."""
     response = client.get(path)
     assert response.status_code == expected_status, (
         f"Expected {expected_status} but got {response.status_code} for {path}. "
@@ -35,233 +21,403 @@ def get_json(path: str, expected_status: int = 200):
     return response.json()
 
 
-# ---------------------------------------------------------------------------
-# GET /api/projects — all projects
-# ---------------------------------------------------------------------------
-
-class TestGetAllProjects:
-    def test_returns_200(self):
-        response = client.get("/api/projects")
-        assert response.status_code == 200
-
-    def test_response_has_total_and_projects(self):
+class TestGetProjects:
+    def test_default_page_uses_real_dataset(self):
         data = get_json("/api/projects")
-        assert "total" in data
-        assert "projects" in data
+        assert data["total"] == 78079
+        assert data["page"] == 1
+        assert data["pageSize"] == 50
+        assert data["totalPages"] == 1562
+        assert len(data["projects"]) == 50
 
-    def test_total_matches_projects_list_length(self):
-        data = get_json("/api/projects")
-        assert data["total"] == len(data["projects"])
-
-    def test_returns_all_20_mock_records(self):
-        data = get_json("/api/projects")
-        assert data["total"] == 20
-
-    def test_each_project_has_required_fields(self):
-        data = get_json("/api/projects")
+    def test_each_project_has_existing_and_real_data_fields(self):
+        data = get_json("/api/projects?page_size=2")
         required = [
-            "projectId", "workName", "description", "category", "state",
-            "constituency", "mpName", "authority", "recommendationDate",
-            "sanctionDate", "sanctionAmount", "workStage", "vendorName",
-            "totalDisbursed", "lastExpenditureDate", "risk", "similarProjects",
+            "projectId",
+            "workName",
+            "activityName",
+            "description",
+            "category",
+            "state",
+            "constituency",
+            "mpName",
+            "authority",
+            "recommendationDate",
+            "sanctionDate",
+            "sanctionAmount",
+            "workStage",
+            "vendorName",
+            "totalDisbursed",
+            "lastExpenditureDate",
+            "hasExpenditure",
+            "expenditureRecordCount",
+            "uniqueVendorCount",
+            "vendors",
+            "workIds",
+            "risk",
+            "similarProjects",
         ]
         for project in data["projects"]:
-            for field in required:
-                assert field in project, f"Missing field '{field}' in project {project.get('projectId')}"
+            assert all(field in project for field in required)
 
-    def test_risk_block_has_required_fields(self):
-        data = get_json("/api/projects")
-        risk_fields = ["overallScore", "level", "cost", "delay", "expenditure", "duplicate"]
-        for project in data["projects"]:
-            risk = project["risk"]
-            for field in risk_fields:
-                assert field in risk, f"Missing risk field '{field}' in project {project.get('projectId')}"
+    def test_risk_components_remain_explainable(self):
+        project = get_json("/api/projects?page_size=1")["projects"][0]
+        assert all(
+            field in project["risk"]
+            for field in [
+                "overallScore",
+                "level",
+                "flagCount",
+                "cost",
+                "delay",
+                "expenditure",
+                "duplicate",
+            ]
+        )
+        for detector in ["cost", "delay", "expenditure", "duplicate"]:
+            assert set(project["risk"][detector]) == {"score", "flagged", "reason"}
 
-    def test_risk_component_has_score_flagged_reason(self):
-        data = get_json("/api/projects")
-        for project in data["projects"]:
-            for detector in ["cost", "delay", "expenditure", "duplicate"]:
-                comp = project["risk"][detector]
-                assert "score" in comp
-                assert "flagged" in comp
-                assert "reason" in comp
+    def test_second_page_is_distinct(self):
+        first = get_json("/api/projects?page=1&page_size=2")
+        second = get_json("/api/projects?page=2&page_size=2")
+        first_ids = {project["projectId"] for project in first["projects"]}
+        second_ids = {project["projectId"] for project in second["projects"]}
+        assert first_ids.isdisjoint(second_ids)
 
+    def test_page_size_limit_is_enforced(self):
+        get_json("/api/projects?page=0", expected_status=422)
+        get_json("/api/projects?page_size=101", expected_status=422)
 
-# ---------------------------------------------------------------------------
-# GET /api/projects/{projectId} — single project
-# ---------------------------------------------------------------------------
 
 class TestGetProjectById:
-    def test_returns_200_for_known_project(self):
-        response = client.get("/api/projects/133166")
-        assert response.status_code == 200
-
-    def test_correct_project_returned(self):
+    def test_returns_real_project(self):
         data = get_json("/api/projects/133166")
         assert data["projectId"] == "133166"
-        assert "workName" in data
+        assert data["state"] == "Karnataka"
+        assert data["risk"]["overallScore"] == 55.21
+        assert data["risk"]["delay"]["flagged"] is True
 
-    def test_complete_risk_block_included(self):
-        data = get_json("/api/projects/133166")
-        assert "risk" in data
-        assert "overallScore" in data["risk"]
-        assert "level" in data["risk"]
-
-    def test_similar_projects_included(self):
-        data = get_json("/api/projects/133166")
-        assert "similarProjects" in data
-        assert isinstance(data["similarProjects"], list)
+    def test_similar_project_evidence_is_preserved(self):
+        data = get_json("/api/projects/135168")
+        similar = data["similarProjects"][0]
+        assert similar["projectId"] == "135169"
+        assert similar["dateDifferenceDays"] == 0
+        assert similar["similarity"] is None
 
     def test_returns_404_for_nonexistent_project(self):
-        response = client.get("/api/projects/does-not-exist")
-        assert response.status_code == 404
-
-    def test_404_response_has_detail(self):
         data = get_json("/api/projects/does-not-exist", expected_status=404)
         assert data["detail"] == "Project not found"
 
-
-# ---------------------------------------------------------------------------
-# GET /api/projects?risk=HIGH — risk filter
-# ---------------------------------------------------------------------------
-
-class TestRiskFilter:
-    def test_high_risk_filter_returns_200(self):
-        response = client.get("/api/projects?risk=HIGH")
-        assert response.status_code == 200
-
-    def test_high_risk_filter_returns_only_high(self):
-        data = get_json("/api/projects?risk=HIGH")
-        for project in data["projects"]:
-            assert project["risk"]["level"].upper() == "HIGH"
-
-    def test_medium_risk_filter_returns_only_medium(self):
-        data = get_json("/api/projects?risk=MEDIUM")
-        for project in data["projects"]:
-            assert project["risk"]["level"].upper() == "MEDIUM"
-
-    def test_low_risk_filter_returns_only_low(self):
-        data = get_json("/api/projects?risk=LOW")
-        for project in data["projects"]:
-            assert project["risk"]["level"].upper() == "LOW"
-
-    def test_total_matches_filtered_list_length(self):
-        data = get_json("/api/projects?risk=HIGH")
-        assert data["total"] == len(data["projects"])
+    def test_100_score_exposes_combined_risk_evidence(self):
+        data = get_json("/api/projects/134038")
+        risk = data["risk"]
+        assert risk["overallScore"] == 100
+        assert risk["baseScore"] == 100
+        assert risk["strongestDetector"] == "cost"
+        assert risk["flagCount"] == 2
+        assert risk["multiSignalBonus"] == 10
+        assert risk["scoreCapped"] is True
 
 
-# ---------------------------------------------------------------------------
-# GET /api/projects?state=Karnataka — state filter
-# ---------------------------------------------------------------------------
+class TestProjectFilters:
+    def test_risk_filters_use_real_risk_levels(self):
+        for requested, returned in [
+            ("LOW", "LOW"),
+            ("MODERATE", "MODERATE"),
+            ("HIGH", "HIGH"),
+            ("CRITICAL", "CRITICAL"),
+        ]:
+            data = get_json(f"/api/projects?risk={requested}&page_size=5")
+            assert data["total"] > 0
+            assert all(p["risk"]["level"] == returned for p in data["projects"])
 
-class TestStateFilter:
-    def test_state_filter_returns_200(self):
-        response = client.get("/api/projects?state=Karnataka")
-        assert response.status_code == 200
+    def test_legacy_medium_filter_maps_to_moderate(self):
+        data = get_json("/api/projects?risk=MEDIUM&page_size=5")
+        assert data["total"] > 0
+        assert all(p["risk"]["level"] == "MODERATE" for p in data["projects"])
 
-    def test_state_filter_returns_only_karnataka(self):
-        data = get_json("/api/projects?state=Karnataka")
-        for project in data["projects"]:
-            assert "karnataka" in project["state"].lower()
+    def test_state_filter_is_case_insensitive_partial_match(self):
+        data = get_json("/api/projects?state=karn&page_size=10")
+        assert data["total"] > 0
+        assert all("karn" in p["state"].lower() for p in data["projects"])
 
-    def test_state_filter_total_matches_list(self):
-        data = get_json("/api/projects?state=Karnataka")
-        assert data["total"] == len(data["projects"])
+    def test_combined_filter_applies_before_pagination(self):
+        data = get_json(
+            "/api/projects?risk=HIGH&state=Karnataka&page=1&page_size=5"
+        )
+        assert data["total"] >= len(data["projects"])
+        assert all(
+            p["risk"]["level"] == "HIGH" and "karnataka" in p["state"].lower()
+            for p in data["projects"]
+        )
 
-
-# ---------------------------------------------------------------------------
-# Combined risk + state filter
-# ---------------------------------------------------------------------------
-
-class TestCombinedFilter:
-    def test_combined_filter_returns_200(self):
-        response = client.get("/api/projects?risk=HIGH&state=Karnataka")
-        assert response.status_code == 200
-
-    def test_combined_filter_results_are_both_high_and_karnataka(self):
-        data = get_json("/api/projects?risk=HIGH&state=Karnataka")
-        for project in data["projects"]:
-            assert project["risk"]["level"].upper() == "HIGH"
-            assert "karnataka" in project["state"].lower()
-
-    def test_combined_filter_total_matches_list(self):
-        data = get_json("/api/projects?risk=HIGH&state=Karnataka")
-        assert data["total"] == len(data["projects"])
-
-    def test_impossible_combination_returns_empty(self):
+    def test_impossible_combination_returns_empty_page(self):
         data = get_json("/api/projects?risk=LOW&state=DoesNotExistState")
         assert data["total"] == 0
+        assert data["totalPages"] == 0
         assert data["projects"] == []
 
+    def test_category_filter_is_applied_server_side(self):
+        options = get_json("/api/projects/options")
+        category = options["categories"][0]
+        data = get_json(f"/api/projects?category={category}&page_size=5")
+        assert data["total"] > 0
+        assert all(p["category"].lower() == category.lower() for p in data["projects"])
 
-# ---------------------------------------------------------------------------
-# GET /api/alerts
-# ---------------------------------------------------------------------------
+    def test_search_is_applied_server_side(self):
+        data = get_json("/api/projects?search=133166&page_size=5")
+        assert data["total"] == 1
+        assert data["projects"][0]["projectId"] == "133166"
+
+    def test_search_is_case_insensitive(self):
+        lower = get_json("/api/projects?search=karnataka&page_size=5")
+        upper = get_json("/api/projects?search=KARNATAKA&page_size=5")
+        assert lower["total"] == upper["total"] > 0
+        assert [project["projectId"] for project in lower["projects"]] == [
+            project["projectId"] for project in upper["projects"]
+        ]
+
+    def test_partial_search(self):
+        data = get_json("/api/projects?search=13316&page_size=5")
+        assert data["total"] > 0
+        assert data["projects"][0]["projectId"].startswith("13316")
+
+    def test_multi_word_search_allows_any_order(self):
+        forward = get_json("/api/projects?search=Pralhad%20Joshi&page_size=5")
+        reverse = get_json("/api/projects?search=Joshi%20Pralhad&page_size=5")
+        assert forward["total"] == reverse["total"] == 125
+        assert [project["projectId"] for project in forward["projects"]] == [
+            project["projectId"] for project in reverse["projects"]
+        ]
+
+    def test_street_light_alias_search(self):
+        data = get_json("/api/projects?search=street%20light&page_size=10")
+        assert data["total"] > 0
+        assert data["projects"]
+
+    def test_bridge_alias_search(self):
+        data = get_json("/api/projects?search=bridge&page_size=10")
+        assert data["total"] > 0
+        assert data["projects"]
+
+    def test_road_alias_search(self):
+        data = get_json("/api/projects?search=road&page_size=10")
+        assert data["total"] > 0
+        assert data["projects"]
+
+    def test_search_by_mp_name_is_global(self):
+        data = get_json(
+            "/api/projects?search=Pralhad%20Venkatesh%20Joshi&page_size=5"
+        )
+        assert data["total"] == 125
+        assert all(
+            project["mpName"] == "Pralhad Venkatesh Joshi"
+            for project in data["projects"]
+        )
+
+    def test_search_by_state_is_global(self):
+        data = get_json("/api/projects?search=Karnataka&page_size=5")
+        assert data["total"] >= 2596
+        assert all(project["state"] == "Karnataka" for project in data["projects"])
+
+    def test_search_by_vendor_is_global(self):
+        data = get_json(
+            "/api/projects?search=SHRINIVAS%20MAVINAKAI&page_size=5"
+        )
+        assert data["total"] > 0
+        assert all("mavinakai" in project["vendorName"].lower() for project in data["projects"])
+
+    def test_search_includes_work_ids(self):
+        response = client.get(
+            "/api/projects",
+            params={
+                "search": "WS/ MP620/2024-2025/133166",
+                "page_size": 5,
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+        assert data["projects"][0]["projectId"] == "133166"
+
+    def test_combined_search_and_filters_use_full_dataset(self):
+        response = client.get(
+            "/api/projects",
+            params={
+                "search": "Pralhad Venkatesh Joshi",
+                "state": "Karnataka",
+                "risk": "HIGH",
+                "page_size": 5,
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 12
+        assert len(data["projects"]) == 5
+        assert all(
+            project["mpName"] == "Pralhad Venkatesh Joshi"
+            and project["state"] == "Karnataka"
+            and project["risk"]["level"] == "HIGH"
+            for project in data["projects"]
+        )
+
+    def test_search_state_category_and_risk_filters_compose(self):
+        category = get_json(
+            "/api/projects?search=road&state=Karnataka&risk=HIGH&page_size=1"
+        )["projects"][0]["category"]
+        response = client.get(
+            "/api/projects",
+            params={
+                "search": "road",
+                "state": "Karnataka",
+                "category": category,
+                "risk": "HIGH",
+                "page_size": 10,
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] > 0
+        assert all(
+            project["state"] == "Karnataka"
+            and project["category"] == category
+            and project["risk"]["level"] == "HIGH"
+            for project in data["projects"]
+        )
+
+    def test_filter_options_come_from_real_data(self):
+        data = get_json("/api/projects/options")
+        assert "Karnataka" in data["states"]
+        assert data["categories"]
+        assert data["riskLevels"] == ["CRITICAL", "HIGH", "MODERATE", "LOW"]
+
 
 class TestAlerts:
-    def test_returns_200(self):
-        response = client.get("/api/alerts")
-        assert response.status_code == 200
+    def test_alerts_are_paginated(self):
+        data = get_json("/api/alerts?page=1&page_size=10")
+        assert data["total"] == 17774
+        assert data["page"] == 1
+        assert data["pageSize"] == 10
+        assert data["totalPages"] == 1778
+        assert len(data["alerts"]) == 10
 
-    def test_response_has_total_and_alerts(self):
-        data = get_json("/api/alerts")
-        assert "total" in data
-        assert "alerts" in data
-
-    def test_total_matches_alerts_list_length(self):
-        data = get_json("/api/alerts")
-        assert data["total"] == len(data["alerts"])
-
-    def test_each_alert_has_flagged_detectors(self):
-        data = get_json("/api/alerts")
+    def test_alerts_reuse_detector_flags(self):
+        data = get_json("/api/alerts?page_size=10")
+        required = {
+            "projectId",
+            "workName",
+            "state",
+            "constituency",
+            "mpName",
+            "riskLevel",
+            "overallScore",
+            "flaggedDetectors",
+        }
         for alert in data["alerts"]:
-            assert "flaggedDetectors" in alert
-            assert len(alert["flaggedDetectors"]) > 0
+            assert required.issubset(alert)
+            assert alert["flaggedDetectors"]
 
-    def test_alert_fields_present(self):
-        data = get_json("/api/alerts")
-        required = ["projectId", "workName", "state", "constituency", "mpName",
-                    "riskLevel", "overallScore", "flaggedDetectors"]
-        for alert in data["alerts"]:
-            for field in required:
-                assert field in alert, f"Missing field '{field}' in alert {alert.get('projectId')}"
+    def test_alert_page_size_limit_is_enforced(self):
+        get_json("/api/alerts?page_size=101", expected_status=422)
 
-    def test_all_alerts_have_at_least_one_flagged_detector(self):
-        data = get_json("/api/alerts")
-        for alert in data["alerts"]:
-            assert len(alert["flaggedDetectors"]) >= 1
-
-
-# ---------------------------------------------------------------------------
-# GET /api/statistics
-# ---------------------------------------------------------------------------
 
 class TestStatistics:
-    def test_returns_200(self):
-        response = client.get("/api/statistics")
-        assert response.status_code == 200
-
-    def test_response_has_required_fields(self):
+    def test_statistics_match_real_risk_distribution(self):
         data = get_json("/api/statistics")
-        for field in ["totalProjects", "highRisk", "mediumRisk", "lowRisk"]:
-            assert field in data
+        assert data == {
+            "totalProjects": 78079,
+            "highRisk": 6717,
+            "mediumRisk": 10787,
+            "lowRisk": 49518,
+            "criticalRisk": 11057,
+        }
 
-    def test_statistics_dynamic_consistency(self):
-        """Statistics must be consistent with the actual project list."""
+    def test_statistics_match_filtered_totals(self):
         stats = get_json("/api/statistics")
-        all_projects = get_json("/api/projects")
-
-        assert stats["totalProjects"] == all_projects["total"]
-
-        # Count risk levels from the full project list
-        high = sum(1 for p in all_projects["projects"] if p["risk"]["level"].upper() == "HIGH")
-        medium = sum(1 for p in all_projects["projects"] if p["risk"]["level"].upper() == "MEDIUM")
-        low = sum(1 for p in all_projects["projects"] if p["risk"]["level"].upper() == "LOW")
-
-        assert stats["highRisk"] == high
-        assert stats["mediumRisk"] == medium
-        assert stats["lowRisk"] == low
+        assert stats["highRisk"] == get_json("/api/projects?risk=HIGH")["total"]
+        assert stats["mediumRisk"] == get_json("/api/projects?risk=MODERATE")["total"]
+        assert stats["lowRisk"] == get_json("/api/projects?risk=LOW")["total"]
+        assert stats["criticalRisk"] == get_json("/api/projects?risk=CRITICAL")["total"]
 
     def test_risk_counts_sum_to_total(self):
         data = get_json("/api/statistics")
-        assert data["highRisk"] + data["mediumRisk"] + data["lowRisk"] == data["totalProjects"]
+        assert (
+            data["highRisk"]
+            + data["mediumRisk"]
+            + data["lowRisk"]
+            + data["criticalRisk"]
+            == data["totalProjects"]
+        )
+
+
+class TestProjectAggregates:
+    def test_nationwide_aggregates_cover_all_projects_and_states(self):
+        data = get_json("/api/projects/aggregates")
+        assert data["totalProjects"] == 78079
+        assert data["totalSanctionAmount"] == 41069314737.08
+        assert data["totalExpenditure"] == 27287454970.45
+        assert data["riskLevelCounts"] == {
+            "low": 49518,
+            "moderate": 10787,
+            "high": 6717,
+            "critical": 11057,
+        }
+        assert data["requiresReviewCount"] == 17774
+        assert data["flaggedComponentCounts"] == {
+            "cost": 6040,
+            "delay": 1477,
+            "expenditure": 5538,
+            "duplicate": 6724,
+        }
+        assert len(data["stateAggregates"]) == 36
+        assert sum(state["projectCount"] for state in data["stateAggregates"]) == 78079
+
+    def test_filtered_aggregates_match_complete_filtered_listing(self):
+        params = {
+            "search": "Pralhad Venkatesh Joshi",
+            "state": "Karnataka",
+            "risk": "HIGH",
+        }
+        aggregate_response = client.get("/api/projects/aggregates", params=params)
+        list_response = client.get(
+            "/api/projects", params={**params, "page": 1, "page_size": 5}
+        )
+        assert aggregate_response.status_code == 200
+        assert list_response.status_code == 200
+        aggregates = aggregate_response.json()
+        listing = list_response.json()
+        assert aggregates["totalProjects"] == listing["total"] == 12
+        assert sum(aggregates["riskLevelCounts"].values()) == 12
+        assert sum(state["projectCount"] for state in aggregates["stateAggregates"]) == 12
+        assert aggregates["riskLevelCounts"]["high"] == 12
+
+    def test_table_page_changes_do_not_change_aggregates(self):
+        params = {"search": "Karnataka"}
+        before = client.get("/api/projects/aggregates", params=params).json()
+        first_page = client.get(
+            "/api/projects", params={**params, "page": 1, "page_size": 5}
+        ).json()
+        second_page = client.get(
+            "/api/projects", params={**params, "page": 2, "page_size": 5}
+        ).json()
+        after = client.get("/api/projects/aggregates", params=params).json()
+
+        assert first_page["projects"] != second_page["projects"]
+        assert first_page["total"] == second_page["total"] == before["totalProjects"]
+        assert before == after
+
+
+class TestProjectExport:
+    def test_export_uses_the_same_filtered_result_set(self):
+        params = {
+            "search": "Pralhad Venkatesh Joshi",
+            "state": "Karnataka",
+            "risk": "HIGH",
+        }
+        response = client.get("/api/projects/export", params=params)
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/csv")
+        lines = response.text.strip().splitlines()
+        assert len(lines) == 13
+        assert lines[0].startswith("project_id,work_name,state")
+        assert all(",Karnataka," in line for line in lines[1:])
