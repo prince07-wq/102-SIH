@@ -1,0 +1,20 @@
+.utility-page { max-width: 1050px; margin: 0 auto; }
+.utility-page h1 { margin: 0 0 6px; font-size: 24px; color: var(--text-primary); }
+.utility-page__lede, .utility-page__note { color: var(--text-secondary); font-size: 13px; }
+.utility-page__section { margin-top: 24px; }
+.utility-page__section > h2 { margin: 0 0 5px; color: var(--text-primary); font-size: 17px; }
+.utility-page__section > p, .utility-page__scope-note { margin: 0; color: var(--text-secondary); font-size: 12.5px; }
+.utility-page__empty { padding: 32px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-secondary); }
+.utility-page__error { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--risk-high); border-radius: var(--radius-sm); color: var(--risk-high); font-size: 12px; }
+.saved-list, .report-grid { display: grid; gap: 12px; margin-top: 22px; }
+.report-grid { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.saved-list__item, .report-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px; box-shadow: var(--shadow-sm); }
+.saved-list__item { display: flex; align-items: center; gap: 14px; }
+.saved-list__summary { display: flex; flex: 1; flex-direction: column; gap: 4px; color: var(--text-primary); }
+.saved-list__summary span, .report-card p { color: var(--text-secondary); font-size: 12px; }
+.saved-list__actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.saved-list__item button, .report-card button, .report-card a { border: 1px solid var(--border-medium); background: var(--bg-panel); color: var(--brand-primary); padding: 7px 10px; border-radius: var(--radius-sm); cursor: pointer; font-size: 12px; }
+.saved-list__actions a, .saved-list__actions button { border: 1px solid var(--border-medium); background: var(--bg-panel); color: var(--brand-primary); padding: 7px 10px; border-radius: var(--radius-sm); cursor: pointer; font-size: 12px; }
+.saved-list__actions button:disabled { cursor: wait; opacity: 0.65; }
+.report-card h2 { margin: 0; font-size: 15px; }
+.report-card div { display: flex; gap: 8px; margin-top: 14px; }
