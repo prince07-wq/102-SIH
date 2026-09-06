@@ -66,6 +66,16 @@ export async function getProjectById(id, signal) {
   }
 }
 
+export function getProjectEvidence(id, signal) {
+  return request(`/api/projects/${encodeURIComponent(id)}/evidence`, { signal });
+}
+
+export function getApiAssetUrl(path) {
+  if (!path) return null;
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+}
+
 export function getProjectFilterOptions(signal) {
   return request('/api/projects/options', { signal });
 }

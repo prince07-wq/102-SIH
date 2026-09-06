@@ -8,7 +8,7 @@ frontend.  Field names and types MUST NOT change without a coordinated
 frontend update.
 """
 
-from typing import List, Optional
+from typing import List, Literal, Optional
 from pydantic import BaseModel
 
 
@@ -96,8 +96,59 @@ class ProjectRecord(BaseModel):
     firstExpenditureDate: Optional[str]
     vendors: List[VendorRecord]
     workIds: List[str]
+    officialWorkIds: List[int]
+    hasOfficialAttachment: bool
     risk: RiskDetail
     similarProjects: List[SimilarProject]
+
+
+# ---------------------------------------------------------------------------
+# On-demand official evidence
+# ---------------------------------------------------------------------------
+
+EvidenceType = Literal[
+    "PHOTO_GPS",
+    "PHOTO_ONLY",
+    "DOCUMENT_ONLY",
+    "NO_ATTACHMENT",
+    "PROCESSING_FAILED",
+]
+
+
+class EvidencePhoto(BaseModel):
+    """One safely served photo extracted from an official attachment."""
+
+    url: str
+    attachment_id: str
+    source_page: Optional[int] = None
+
+
+class EvidenceAttachment(BaseModel):
+    """Normalized public metadata for one downloaded official attachment."""
+
+    attachment_id: str
+    original_file_name: Optional[str] = None
+    content_type: Optional[str] = None
+    evidence_type: EvidenceType
+    original_url: Optional[str] = None
+    photos: List[EvidencePhoto]
+    processing_error: Optional[str] = None
+
+
+class ProjectEvidenceResponse(BaseModel):
+    """On-demand evidence result for one project."""
+
+    status: EvidenceType
+    attachments: List[EvidenceAttachment]
+    has_project_photo: bool
+    photos: List[EvidencePhoto]
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    location_text: Optional[str] = None
+    timestamp: Optional[str] = None
+    original_file_name: Optional[str] = None
+    evidence_type: EvidenceType
+    cached: bool
 
 
 # ---------------------------------------------------------------------------

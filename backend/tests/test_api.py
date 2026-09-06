@@ -54,6 +54,8 @@ class TestGetProjects:
             "uniqueVendorCount",
             "vendors",
             "workIds",
+            "officialWorkIds",
+            "hasOfficialAttachment",
             "risk",
             "similarProjects",
         ]
@@ -117,6 +119,12 @@ class TestGetProjectById:
         assert risk["flagCount"] == 2
         assert risk["multiSignalBonus"] == 10
         assert risk["scoreCapped"] is True
+
+    def test_completed_work_identifiers_are_separate_from_textual_work_ids(self):
+        data = get_json("/api/projects/133312")
+        assert data["workIds"] == ["WS/\t MP620/2024-2025/133312"]
+        assert data["officialWorkIds"] == [58590]
+        assert data["hasOfficialAttachment"] is True
 
 
 class TestProjectFilters:

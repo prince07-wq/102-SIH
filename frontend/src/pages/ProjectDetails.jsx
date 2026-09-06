@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import RiskBadge from '../components/RiskBadge';
 import ProjectReportDialog from '../components/ProjectReportDialog';
+import OfficialEvidence from '../components/OfficialEvidence';
 import { getProjectById } from '../services/api';
 import { useSavedProjects } from '../hooks/useSavedProjects';
 import { formatINR } from '../utils/format';
@@ -153,6 +154,8 @@ export default function ProjectDetails() {
           <InfoField label="Work IDs" value={project.workIds.join(', ')} mono />
         </div>
       </div>
+
+      <OfficialEvidence key={project.projectId} projectId={project.projectId} />
 
       {/* Overall risk + breakdown */}
       <div className="pd__risk-row">

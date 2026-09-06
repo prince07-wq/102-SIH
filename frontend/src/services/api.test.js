@@ -7,6 +7,8 @@ import {
   buildStateRiskData,
   buildSummary,
   getProjectExportUrl,
+  getApiAssetUrl,
+  getProjectEvidence,
 } from './api.js';
 import {
   buildAnomalyCsv,
@@ -28,6 +30,36 @@ const AGGREGATES = {
   ],
   flaggedComponentCounts: { cost: 3, delay: 2, expenditure: 4, duplicate: 1 },
 };
+
+test('official evidence uses the on-demand project endpoint', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    calls.push(url);
+    return {
+      ok: true,
+      json: async () => ({ status: 'NO_ATTACHMENT' }),
+    };
+  };
+
+  try {
+    const result = await getProjectEvidence('project/id');
+    assert.equal(result.status, 'NO_ATTACHMENT');
+    assert.deepEqual(calls, [
+      'http://localhost:8000/api/projects/project%2Fid/evidence',
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('cached evidence asset paths resolve against the backend origin', () => {
+  assert.equal(
+    getApiAssetUrl('/api/projects/1/evidence/files/attachment_001/photo.jpg'),
+    'http://localhost:8000/api/projects/1/evidence/files/attachment_001/photo.jpg',
+  );
+  assert.equal(getApiAssetUrl('https://example.test/file.pdf'), 'https://example.test/file.pdf');
+});
 
 test('dashboard analytics depend only on full filtered aggregates', () => {
   const firstPage = [{ projectId: '1' }];
