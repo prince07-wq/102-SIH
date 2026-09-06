@@ -1,10 +1,9 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import RiskBadge from './RiskBadge';
+import { useSavedProjects } from '../hooks/useSavedProjects';
 import { formatINR } from '../utils/format';
 import './RiskyProj.css';
-
-const PAGE_SIZE = 8;
 
 const COLUMNS = [
   { key: 'workName', label: 'Project', sortable: false },
@@ -18,23 +17,28 @@ const COLUMNS = [
 
 /**
  * RiskyProj — the "All Projects" table.
- * Receives an already-filtered project list via props and owns only
- * table-local concerns: column sorting, pagination, and row navigation.
+ * Receives one server-filtered page and owns only page-local sorting and
+ * row navigation. Page changes are delegated to the dashboard.
  * Does not fetch data directly.
  *
  * Props:
  *  - projects: Project[]
  *  - onExport: () => void (optional)
  */
-export default function RiskyProj({ projects = [], onExport }) {
+export default function RiskyProj({
+  projects = [],
+  total = 0,
+  page = 1,
+  pageSize = 8,
+  totalPages = 0,
+  loading = false,
+  onPageChange,
+  onExport,
+}) {
   const navigate = useNavigate();
+  const { toggleSaved, isSaved } = useSavedProjects();
   const [sortKey, setSortKey] = useState('riskScore');
   const [sortDir, setSortDir] = useState('desc');
-  const [page, setPage] = useState(1);
-
-  useEffect(() => {
-    setPage(1);
-  }, [projects]);
 
   const sorted = useMemo(() => {
     const list = [...projects];
@@ -70,10 +74,8 @@ export default function RiskyProj({ projects = [], onExport }) {
     return list;
   }, [projects, sortKey, sortDir]);
 
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const pageStart = (currentPage - 1) * PAGE_SIZE;
-  const pageItems = sorted.slice(pageStart, pageStart + PAGE_SIZE);
+  const currentPage = page;
+  const pageStart = total ? (currentPage - 1) * pageSize : 0;
 
   function toggleSort(key) {
     if (!COLUMNS.find((c) => c.key === key)?.sortable) return;
@@ -86,7 +88,8 @@ export default function RiskyProj({ projects = [], onExport }) {
   }
 
   function goToPage(p) {
-    setPage(Math.min(Math.max(1, p), totalPages));
+    if (!onPageChange || totalPages === 0) return;
+    onPageChange(Math.min(Math.max(1, p), totalPages));
   }
 
   const pageNumbers = getPageNumbers(currentPage, totalPages);
@@ -126,15 +129,15 @@ export default function RiskyProj({ projects = [], onExport }) {
             </tr>
           </thead>
           <tbody>
-            {pageItems.map((p) => (
+            {sorted.map((p) => (
               <tr
                 key={p.projectId}
                 className="risky-proj__row"
-                onClick={() => navigate(`/project/${p.projectId}`)}
+                onClick={() => navigate(`/projects/${p.projectId}`)}
                 tabIndex={0}
                 role="link"
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') navigate(`/project/${p.projectId}`);
+                  if (e.key === 'Enter') navigate(`/projects/${p.projectId}`);
                 }}
               >
                 <td className="risky-proj__work">
@@ -151,7 +154,19 @@ export default function RiskyProj({ projects = [], onExport }) {
                 <td>
                   <RiskBadge level={p.risk.level} size="sm" showScore={false} />
                 </td>
-                <td className="risky-proj__arrow" aria-hidden="true">
+                <td className="risky-proj__actions">
+                  <button
+                    type="button"
+                    className={isSaved(p.projectId) ? 'is-saved' : ''}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleSaved(p);
+                    }}
+                    aria-label={isSaved(p.projectId) ? 'Remove from review list' : 'Save for review'}
+                    title={isSaved(p.projectId) ? 'Saved for review' : 'Save for Review'}
+                  >
+                    {isSaved(p.projectId) ? '★' : '☆'}
+                  </button>
                   <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                     <path d="M6 3.5 10.5 8 6 12.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
@@ -159,7 +174,15 @@ export default function RiskyProj({ projects = [], onExport }) {
               </tr>
             ))}
 
-            {pageItems.length === 0 && (
+            {loading && (
+              <tr>
+                <td colSpan={8} className="risky-proj__empty">
+                  Loading projects…
+                </td>
+              </tr>
+            )}
+
+            {!loading && sorted.length === 0 && (
               <tr>
                 <td colSpan={8} className="risky-proj__empty">
                   No projects match the current filters.
@@ -172,12 +195,12 @@ export default function RiskyProj({ projects = [], onExport }) {
 
       <div className="risky-proj__footer">
         <span className="risky-proj__count">
-          Showing {sorted.length === 0 ? 0 : pageStart + 1} to {Math.min(pageStart + PAGE_SIZE, sorted.length)} of{' '}
-          {sorted.length} results
+          Showing {total === 0 ? 0 : pageStart + 1} to {Math.min(pageStart + projects.length, total)} of{' '}
+          {total} results
         </span>
 
         <div className="risky-proj__pagination">
-          <button type="button" onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} aria-label="Previous page">
+          <button type="button" onClick={() => goToPage(currentPage - 1)} disabled={loading || currentPage === 1} aria-label="Previous page">
             &lsaquo;
           </button>
           {pageNumbers.map((p, i) =>
@@ -191,6 +214,7 @@ export default function RiskyProj({ projects = [], onExport }) {
                 type="button"
                 className={p === currentPage ? 'is-active' : ''}
                 onClick={() => goToPage(p)}
+                disabled={loading}
               >
                 {p}
               </button>
@@ -199,7 +223,7 @@ export default function RiskyProj({ projects = [], onExport }) {
           <button
             type="button"
             onClick={() => goToPage(currentPage + 1)}
-            disabled={currentPage === totalPages}
+            disabled={loading || totalPages === 0 || currentPage === totalPages}
             aria-label="Next page"
           >
             &rsaquo;

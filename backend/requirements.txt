@@ -4,3 +4,4 @@ pydantic
 httpx
 pytest
 pytest-asyncio
+-r ../scripts/pdf_evidence_requirements.txt

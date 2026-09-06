@@ -1,17 +1,19 @@
 import './RiskBadge.css';
 
 const LEVEL_CONFIG = {
+  CRITICAL: { label: 'Critical Risk', short: 'Critical', className: 'risk-badge--critical' },
   HIGH: { label: 'High Risk', short: 'High', className: 'risk-badge--high' },
-  MEDIUM: { label: 'Medium Risk', short: 'Medium', className: 'risk-badge--medium' },
+  MODERATE: { label: 'Moderate Risk', short: 'Moderate', className: 'risk-badge--moderate' },
+  MEDIUM: { label: 'Moderate Risk', short: 'Moderate', className: 'risk-badge--moderate' },
   LOW: { label: 'Low Risk', short: 'Low', className: 'risk-badge--low' },
 };
 
 /**
- * RiskBadge — reusable HIGH / MEDIUM / LOW indicator.
+ * RiskBadge — reusable Combined Risk V1 level indicator.
  * Displays overall risk level only. No chart logic lives here.
  *
  * Props:
- *  - level: 'HIGH' | 'MEDIUM' | 'LOW'
+ *  - level: 'CRITICAL' | 'HIGH' | 'MODERATE' | 'LOW'
  *  - score: number (optional)
  *  - size: 'sm' | 'md' (optional, default 'md')
  *  - showScore: boolean (optional, default true when score is provided)

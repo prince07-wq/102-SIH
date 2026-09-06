@@ -1,7 +1,7 @@
 """
 scripts/collect_data.py
 
-Collects raw MPLADS data (Sanctioned Works, Expenditure) from the
+Collects raw MPLADS data (Sanctioned Works, Expenditure, Works Completed) from the
 confirmed MoSPI PreLoginDashboardData API and saves the responses
 unchanged to data/raw/.
 """
@@ -107,6 +107,14 @@ def main():
         )
         print(f"  Retrieved {len(expenditure)} expenditure rows.")
 
+        print("Fetching completed works data...")
+        works_completed = fetch_report(
+            session,
+            key="Works Completed",
+            response_property="Total Works Completed",
+        )
+        print(f"  Retrieved {len(works_completed)} completed-work rows.")
+
     except requests.exceptions.RequestException as e:
         print(f"ERROR: Network/API request failed: {e}")
         sys.exit(1)
@@ -116,24 +124,30 @@ def main():
 
     sanctioned_path = os.path.join(RAW_DATA_DIR, "sanctioned.json")
     expenditure_path = os.path.join(RAW_DATA_DIR, "expenditure.json")
+    works_completed_path = os.path.join(RAW_DATA_DIR, "works_completed.json")
 
     try:
         save_json(sanctioned, sanctioned_path)
         save_json(expenditure, expenditure_path)
+        save_json(works_completed, works_completed_path)
     except OSError as e:
         print(f"ERROR: Failed to save data to disk: {e}")
         sys.exit(1)
 
     unique_sanctioned_ids = count_unique_ids(sanctioned)
     unique_expenditure_ids = count_unique_ids(expenditure)
+    unique_completed_ids = count_unique_ids(works_completed)
 
     print("\n--- Collection Summary ---")
     print(f"Sanctioned rows: {len(sanctioned)}")
     print(f"Expenditure rows: {len(expenditure)}")
+    print(f"Completed-work rows: {len(works_completed)}")
     print(f"Unique sanctioned WORK_RECOMMENDATION_DTL_ID: {unique_sanctioned_ids}")
     print(f"Unique expenditure WORK_RECOMMENDATION_DTL_ID: {unique_expenditure_ids}")
+    print(f"Unique completed WORK_RECOMMENDATION_DTL_ID: {unique_completed_ids}")
     print(f"\nSaved: {sanctioned_path}")
     print(f"Saved: {expenditure_path}")
+    print(f"Saved: {works_completed_path}")
     print("SUCCESS: Data collection complete.")
 
 

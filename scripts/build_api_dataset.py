@@ -97,16 +97,25 @@ def validate_project_record(record, position):
                 f"Project record {position} has a missing or malformed numeric field: {field}"
             )
 
-    if not isinstance(record.get("has_expenditure"), bool):
-        raise ValueError(
-            f"Project record {position} has a missing or malformed boolean field: has_expenditure"
-        )
+    for field in ["has_expenditure", "has_official_attachment"]:
+        if not isinstance(record.get(field), bool):
+            raise ValueError(
+                f"Project record {position} has a missing or malformed boolean field: {field}"
+            )
 
-    for field in ["vendors", "work_ids"]:
+    for field in ["vendors", "work_ids", "official_work_ids"]:
         if not isinstance(record.get(field), list):
             raise ValueError(
                 f"Project record {position} has a missing or malformed list field: {field}"
             )
+
+    if any(
+        not isinstance(work_id, int) or isinstance(work_id, bool)
+        for work_id in record["official_work_ids"]
+    ):
+        raise ValueError(
+            f"Project record {position} has a malformed official_work_ids value"
+        )
 
     conflicting_fields = [
         field for field in RISK_FIELDS + EXPLANATION_FIELDS if field in record

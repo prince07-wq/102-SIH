@@ -157,6 +157,10 @@ def _to_project_record(record):
         firstExpenditureDate=record.get("first_expenditure_date"),
         vendors=vendors,
         workIds=[str(work_id) for work_id in record.get("work_ids", [])],
+        officialWorkIds=[
+            int(work_id) for work_id in record.get("official_work_ids", [])
+        ],
+        hasOfficialAttachment=record.get("has_official_attachment", False),
         risk=risk,
         similarProjects=[
             _to_similar_project(similar)
@@ -604,6 +608,18 @@ def get_project_by_id(project_id: str) -> Optional[ProjectRecord]:
     """Returns a single project by ID using the cached lookup."""
     record = _get_project_index().get(str(project_id))
     return _to_project_record(record) if record is not None else None
+
+
+def get_project_official_work_ids(project_id: str) -> Optional[List[int]]:
+    """Returns numeric completed-work WORK_ID values for official evidence."""
+    record = _get_project_index().get(str(project_id))
+    if record is None:
+        return None
+    return [
+        int(work_id)
+        for work_id in record.get("official_work_ids", [])
+        if isinstance(work_id, int) and not isinstance(work_id, bool)
+    ]
 
 
 def get_alerts(page: int = 1, page_size: int = 50) -> AlertsResponse:

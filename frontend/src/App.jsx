@@ -1,7 +1,10 @@
-import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { BrowserRouter, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import ProjectDetails from './pages/ProjectDetails';
+import Reports from './pages/Reports';
+import SavedProjects from './pages/SavedProjects';
+import { InvestigationProvider, useInvestigation } from './context/InvestigationContext';
 import './App.css';
 
 const NAV_ITEMS = [
@@ -12,14 +15,16 @@ const NAV_ITEMS = [
   { key: 'expenditure', label: 'Expenditure', path: null, icon: IconWallet },
   { key: 'duplicate', label: 'Duplicate Detector', path: null, icon: IconCopy },
   { key: 'analytics', label: 'Analytics', path: null, icon: IconBars },
-  { key: 'reports', label: 'Reports', path: null, icon: IconDoc },
-  { key: 'watchlist', label: 'Watchlist', path: null, icon: IconEye },
+  { key: 'reports', label: 'Reports', path: '/reports', icon: IconDoc },
+  { key: 'watchlist', label: 'Saved / Review List', path: '/saved', icon: IconEye },
 ];
 
 export default function App() {
   return (
     <BrowserRouter>
-      <AppShell />
+      <InvestigationProvider>
+        <AppShell />
+      </InvestigationProvider>
     </BrowserRouter>
   );
 }
@@ -27,11 +32,6 @@ export default function App() {
 function AppShell() {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  // Close the mobile sidebar drawer whenever the route changes.
-  useEffect(() => {
-    setSidebarOpen(false);
-  }, [location.pathname]);
 
   return (
     <div className="app-shell">
@@ -45,7 +45,10 @@ function AppShell() {
         <div className="app-shell__content">
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/projects/:id" element={<ProjectDetails />} />
             <Route path="/project/:id" element={<ProjectDetails />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/saved" element={<SavedProjects />} />
           </Routes>
         </div>
       </div>
@@ -80,7 +83,12 @@ function Sidebar({ open, onClose, pathname }) {
             </>
           );
           return item.path ? (
-            <Link key={item.key} to={item.path} className={`sidebar__link ${isActive ? 'is-active' : ''}`}>
+            <Link
+              key={item.key}
+              to={item.path}
+              className={`sidebar__link ${isActive ? 'is-active' : ''}`}
+              onClick={onClose}
+            >
               {content}
             </Link>
           ) : (
@@ -114,15 +122,93 @@ function Sidebar({ open, onClose, pathname }) {
 }
 
 function Header({ onToggleSidebar }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const searchContainerRef = useRef(null);
+  const [resultsOpen, setResultsOpen] = useState(false);
+  const {
+    searchInput,
+    setSearchInput,
+    searchMeta,
+    isDebouncing,
+    setSearchMeta,
+  } = useInvestigation();
+
+  useEffect(() => {
+    function dismissSearchResults(event) {
+      if (event.type === 'keydown' && event.key !== 'Escape') return;
+      if (event.type === 'pointerdown' && searchContainerRef.current?.contains(event.target)) return;
+      setResultsOpen(false);
+    }
+
+    document.addEventListener('pointerdown', dismissSearchResults);
+    document.addEventListener('keydown', dismissSearchResults);
+    return () => {
+      document.removeEventListener('pointerdown', dismissSearchResults);
+      document.removeEventListener('keydown', dismissSearchResults);
+    };
+  }, []);
+
+  useEffect(() => {
+    // Route transitions must never carry the result overlay onto the destination page.
+    // oxlint-disable-next-line react/set-state-in-effect
+    setResultsOpen(false);
+    setSearchMeta({ loading: false, count: null, results: [] });
+  }, [location.pathname, setSearchMeta]);
+
+  function updateSearch(value) {
+    setSearchInput(value);
+    setResultsOpen(Boolean(value));
+    if (!value) setSearchMeta({ loading: false, count: null, results: [] });
+    if (location.pathname !== '/') navigate('/');
+  }
+
+  function selectSearchResult(projectId) {
+    setResultsOpen(false);
+    setSearchMeta({ loading: false, count: null, results: [] });
+    navigate(`/projects/${projectId}`);
+  }
+
   return (
     <header className="app-header">
       <button className="app-header__menu" onClick={onToggleSidebar} aria-label="Toggle navigation">
         <IconMenu />
       </button>
 
-      <div className="app-header__search">
+      <div className="app-header__search" ref={searchContainerRef}>
         <IconSearch />
-        <input type="text" placeholder="Search work, MP, vendor, location..." aria-label="Global search" />
+        <input
+          type="text"
+          placeholder="Search project, MP, vendor, location, ID..."
+          aria-label="Investigator search"
+          value={searchInput}
+          onChange={(event) => updateSearch(event.target.value)}
+          onFocus={() => setResultsOpen(Boolean(searchInput))}
+        />
+        {searchInput && (
+          <button type="button" className="app-header__search-clear" onClick={() => updateSearch('')} aria-label="Clear search">
+            &times;
+          </button>
+        )}
+        {resultsOpen && searchInput && (isDebouncing || searchMeta.loading || searchMeta.count !== null) && (
+          <div className="app-header__search-results">
+            {isDebouncing || searchMeta.loading ? (
+              <span className="app-header__search-status">Searching…</span>
+            ) : searchMeta.count === 0 ? (
+              <span className="app-header__search-status">No results</span>
+            ) : (
+              <>
+                <span className="app-header__search-status">{searchMeta.count ?? 0} results</span>
+                {searchMeta.results.map((project) => (
+                  <button key={project.projectId} type="button" onClick={() => selectSearchResult(project.projectId)}>
+                    <strong>{project.workName}</strong>
+                    <span>{project.projectId} · {project.state} · {project.mpName}</span>
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="app-header__right">

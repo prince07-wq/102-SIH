@@ -119,10 +119,24 @@
   font-weight: 600;
 }
 
-.risky-proj__arrow {
+.risky-proj__actions {
   color: var(--text-tertiary);
   text-align: right;
-  width: 28px;
+  width: 62px;
+  white-space: nowrap;
+}
+
+.risky-proj__actions button {
+  margin-right: 5px;
+  border: 0;
+  background: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 17px;
+}
+
+.risky-proj__actions button.is-saved {
+  color: var(--brand-primary);
 }
 
 .risky-proj__empty {

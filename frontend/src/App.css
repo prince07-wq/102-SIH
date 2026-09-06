@@ -222,6 +222,7 @@
   border-radius: var(--radius-md);
   padding: 7px 12px;
   color: var(--text-tertiary);
+  position: relative;
 }
 
 .app-header__search svg {
@@ -241,6 +242,68 @@
 
 .app-header__search input::placeholder {
   color: var(--text-tertiary);
+}
+
+.app-header__search-clear {
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.app-header__search-results {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 7px);
+  padding: 7px;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-md);
+  z-index: 20;
+}
+
+.app-header__search-status {
+  display: block;
+  padding: 7px 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.app-header__search-results > button {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.app-header__search-results > button:hover {
+  background: var(--bg-panel);
+}
+
+.app-header__search-results > button strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.app-header__search-results > button span {
+  overflow: hidden;
+  color: var(--text-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
 }
 
 .app-header__right {

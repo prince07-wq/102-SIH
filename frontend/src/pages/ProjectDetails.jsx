@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import RiskBadge from '../components/RiskBadge';
+import ProjectReportDialog from '../components/ProjectReportDialog';
+import OfficialEvidence from '../components/OfficialEvidence';
 import { getProjectById } from '../services/api';
+import { useSavedProjects } from '../hooks/useSavedProjects';
 import { formatINR } from '../utils/format';
 import './ProjectDetails.css';
 
@@ -22,21 +25,41 @@ const FLAG_META = {
 export default function ProjectDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { toggleSaved, isSaved } = useSavedProjects();
   const [project, setProject] = useState(undefined); // undefined = loading, null = not found
+  const [error, setError] = useState(null);
+  const [reportOpen, setReportOpen] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-    setProject(undefined);
-    getProjectById(id).then((res) => {
-      if (!cancelled) setProject(res);
-    });
-    return () => {
-      cancelled = true;
-    };
+    const controller = new AbortController();
+    getProjectById(id, controller.signal)
+      .then((response) => {
+        setError(null);
+        setProject(response);
+      })
+      .catch((loadError) => {
+        if (loadError.name !== 'AbortError') {
+          setError(loadError.message);
+          setProject(null);
+        }
+      });
+    return () => controller.abort();
   }, [id]);
 
-  if (project === undefined) {
+  if (project === undefined || (project && project.projectId !== id)) {
     return <div className="pd__loading">Loading project record…</div>;
+  }
+
+  if (project === null && error) {
+    return (
+      <div className="pd__not-found">
+        <h2>Unable to load project</h2>
+        <p>{error}</p>
+        <button type="button" onClick={() => navigate('/')}>
+          Back to Dashboard
+        </button>
+      </div>
+    );
   }
 
   if (project === null) {
@@ -50,8 +73,6 @@ export default function ProjectDetails() {
       </div>
     );
   }
-
-  const flaggedReasons = RISK_DIMENSIONS.filter((d) => project.risk[d.key].flagged);
 
   return (
     <div className="pd">
@@ -78,7 +99,15 @@ export default function ProjectDetails() {
             <span className="mono pd__meta-id">{project.projectId}</span>
           </div>
         </div>
-        <RiskBadge level={project.risk.level} score={project.risk.overallScore} />
+        <div className="pd__header-actions">
+          <button type="button" className="pd__report" onClick={() => setReportOpen(true)}>
+            Generate Project Report
+          </button>
+          <button type="button" className="pd__save" onClick={() => toggleSaved(project)}>
+            {isSaved(project.projectId) ? 'Saved for Review' : 'Save for Review'}
+          </button>
+          <RiskBadge level={project.risk.level} score={project.risk.overallScore} />
+        </div>
       </div>
 
       {/* Project information */}
@@ -86,23 +115,71 @@ export default function ProjectDetails() {
         <h3 className="panel-title">Project Information</h3>
         <div className="pd__info-grid">
           <InfoField label="State" value={project.state} />
+          <InfoField label="Activity" value={project.activityName} />
           <InfoField label="Sanction Amount" value={formatINR(project.sanctionAmount)} mono />
           <InfoField label="Constituency" value={project.constituency} />
+          <InfoField label="Recommendation Date" value={project.recommendationDate} />
           <InfoField label="Sanction Date" value={project.sanctionDate} />
           <InfoField label="MP" value={project.mpName} />
           <InfoField label="Work Stage" value={project.workStage} />
           <InfoField label="Authority" value={project.authority} />
-          <InfoField label="Vendor" value={project.vendorName} />
           <InfoField label="Category" value={project.category} />
-          <InfoField label="Disbursed Amount" value={formatINR(project.totalDisbursed)} mono />
+          <InfoField label="Tenure" value={project.tenure} />
+          <InfoField label="House of Parliament" value={project.houseOfParliament} />
+          <InfoField label="Description" value={project.description} />
         </div>
       </div>
+
+      {/* Expenditure information */}
+      <div className="pd__section">
+        <h3 className="panel-title">Expenditure Information</h3>
+        <div className="pd__info-grid">
+          <InfoField label="Has Expenditure" value={project.hasExpenditure ? 'Yes' : 'No'} />
+          <InfoField label="Disbursed Amount" value={formatINR(project.totalDisbursed)} mono />
+          <InfoField label="Payment Records" value={project.expenditureRecordCount} mono />
+          <InfoField label="Unique Vendors" value={project.uniqueVendorCount} mono />
+          <InfoField label="First Expenditure Date" value={project.firstExpenditureDate} />
+          <InfoField label="Last Expenditure Date" value={project.lastExpenditureDate} />
+          <InfoField
+            label="Vendors and IDs"
+            value={project.vendors
+              .map((vendor) =>
+                [vendor.vendorName, vendor.vendorId ? `ID ${vendor.vendorId}` : null]
+                  .filter(Boolean)
+                  .join(' · '),
+              )
+              .filter(Boolean)
+              .join(', ')}
+          />
+          <InfoField label="Work IDs" value={project.workIds.join(', ')} mono />
+        </div>
+      </div>
+
+      <OfficialEvidence key={project.projectId} projectId={project.projectId} />
 
       {/* Overall risk + breakdown */}
       <div className="pd__risk-row">
         <div className="pd__section pd__risk-gauge-card">
           <h3 className="panel-title">Overall Risk</h3>
           <RiskGauge score={project.risk.overallScore} level={project.risk.level} />
+          <div className="pd__risk-evidence">
+            <span>
+              Strongest detector: <strong>{detectorLabel(project.risk.strongestDetector)}</strong>{' '}
+              ({formatScore(project.risk.baseScore)} /100)
+            </span>
+            <span>
+              Flag count: <strong>{project.risk.flagCount} of 4</strong>
+            </span>
+            <span>
+              Multi-signal bonus: <strong>+{project.risk.multiSignalBonus}</strong>
+              {project.risk.multiSignalBonus === 0 ? ' (fewer than two components flagged)' : ''}
+            </span>
+            <span>
+              Combined score: min(100, {formatScore(project.risk.baseScore)} +{' '}
+              {project.risk.multiSignalBonus})
+              {project.risk.scoreCapped ? ' · capped at 100' : ''}
+            </span>
+          </div>
         </div>
 
         <div className="pd__section pd__risk-breakdown-card">
@@ -119,7 +196,7 @@ export default function ProjectDetails() {
                       style={{ width: `${dim.score}%` }}
                     />
                   </div>
-                  <span className="pd__breakdown-score mono">{dim.score} /100</span>
+                  <span className="pd__breakdown-score mono">{formatScore(dim.score)} /100</span>
                 </div>
               );
             })}
@@ -127,31 +204,62 @@ export default function ProjectDetails() {
         </div>
       </div>
 
-      {/* Why flagged */}
+      {/* Explainable component output */}
       <div className="pd__section pd__why-flagged">
-        <h3 className="pd__why-title">Why Flagged?</h3>
+        <h3 className="pd__why-title">Risk Component Explanations</h3>
 
-        {flaggedReasons.length === 0 ? (
-          <p className="pd__why-empty">No anomaly detectors were triggered for this work.</p>
-        ) : (
-          <ul className="pd__why-list">
-            {flaggedReasons.map((d) => (
-              <li key={d.key} className={`pd__why-item pd__why-item--${d.key}`}>
-                <span className="pd__why-icon">{FLAG_META[d.key].icon}</span>
+        <ul className="pd__why-list">
+          {RISK_DIMENSIONS.map((dimension) => {
+            const component = project.risk[dimension.key];
+            return (
+              <li key={dimension.key} className={`pd__why-item pd__why-item--${dimension.key}`}>
+                <span className="pd__why-icon">{FLAG_META[dimension.key].icon}</span>
                 <div>
-                  <span className="pd__why-label">{FLAG_META[d.key].label}</span>
-                  <p className="pd__why-text">{project.risk[d.key].reason}</p>
+                  <span className="pd__why-label">
+                    {FLAG_META[dimension.key].label} · {formatScore(component.score)} /100 ·{' '}
+                    {component.flagged ? 'Risk signal' : 'Not flagged'}
+                  </span>
+                  <p className="pd__why-text">{component.reason}</p>
                 </div>
               </li>
-            ))}
-          </ul>
-        )}
+            );
+          })}
+        </ul>
 
         <p className="pd__why-disclaimer">
           These indicators denote a potential irregularity that requires review &mdash; they are not a finding of
           fraud or wrongdoing.
         </p>
       </div>
+
+      {/* Similar-project evidence */}
+      <div className="pd__section">
+        <h3 className="panel-title">Similar Projects</h3>
+        {project.similarProjects.length === 0 ? (
+          <p className="pd__why-empty">No similar-project candidates were retained for this work.</p>
+        ) : (
+          <div className="pd__similar-list">
+            {project.similarProjects.map((similar) => (
+              <Link key={similar.projectId} to={`/projects/${similar.projectId}`} className="pd__similar-item">
+                <div>
+                  <span className="pd__similar-name">{similar.workName}</span>
+                  <span className="mono pd__similar-id">{similar.projectId}</span>
+                </div>
+                <div className="pd__similar-meta">
+                  <span>{formatINR(similar.sanctionAmount)}</span>
+                  <span>{similar.sanctionDate || '—'}</span>
+                  <span>
+                    {similar.dateDifferenceDays === null
+                      ? 'Date difference unavailable'
+                      : `${similar.dateDifferenceDays} day difference`}
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+      {reportOpen && <ProjectReportDialog project={project} onClose={() => setReportOpen(false)} />}
     </div>
   );
 }
@@ -160,15 +268,31 @@ function InfoField({ label, value, mono }) {
   return (
     <div className="pd__info-field">
       <span className="pd__info-label">{label}</span>
-      <span className={`pd__info-value ${mono ? 'mono' : ''}`}>{value}</span>
+      <span className={`pd__info-value ${mono ? 'mono' : ''}`}>
+        {value === null || value === undefined || value === '' ? '—' : value}
+      </span>
     </div>
   );
 }
 
 function scoreTier(score) {
-  if (score >= 70) return 'high';
-  if (score >= 40) return 'medium';
+  if (score >= 50) return 'high';
+  if (score >= 20) return 'medium';
   return 'low';
+}
+
+function formatScore(score) {
+  return Number(score).toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+}
+
+function detectorLabel(detector) {
+  const labels = {
+    cost: 'Cost',
+    delay: 'Delay',
+    expenditure: 'Expenditure',
+    duplicate: 'Duplicate/similarity',
+  };
+  return labels[detector] || detector;
 }
 
 function RiskGauge({ score, level }) {
@@ -176,12 +300,16 @@ function RiskGauge({ score, level }) {
   const size = 168;
   const stroke = 14;
   const r = (size - stroke) / 2;
-  const cx = size / 2;
   const cy = size / 2;
   const circumference = Math.PI * r;
   const pct = Math.max(0, Math.min(100, score)) / 100;
   const dashOffset = circumference * (1 - pct);
-  const color = level === 'HIGH' ? 'var(--risk-high)' : level === 'MEDIUM' ? 'var(--risk-medium)' : 'var(--risk-low)';
+  const color =
+    level === 'CRITICAL' || level === 'HIGH'
+      ? 'var(--risk-high)'
+      : level === 'MODERATE' || level === 'MEDIUM'
+        ? 'var(--risk-medium)'
+        : 'var(--risk-low)';
 
   return (
     <div className="pd__gauge">
@@ -204,7 +332,7 @@ function RiskGauge({ score, level }) {
         />
       </svg>
       <div className="pd__gauge-value">
-        <span className="pd__gauge-score">{score}</span>
+        <span className="pd__gauge-score">{formatScore(score)}</span>
         <span className={`pd__gauge-label pd__gauge-label--${scoreTier(score)}`}>{level.charAt(0)}{level.slice(1).toLowerCase()} Risk</span>
       </div>
     </div>

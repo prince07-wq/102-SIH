@@ -8,6 +8,7 @@ WORK_RECOMMENDATION_DTL_ID as the join key.
 Input:
   data/raw/sanctioned.json
   data/raw/expenditure.json
+  data/raw/works_completed.json
 
 Output:
   data/processed/projects.json
@@ -20,6 +21,7 @@ from datetime import datetime
 
 SANCTIONED_PATH = os.path.join("data", "raw", "sanctioned.json")
 EXPENDITURE_PATH = os.path.join("data", "raw", "expenditure.json")
+WORKS_COMPLETED_PATH = os.path.join("data", "raw", "works_completed.json")
 OUTPUT_PATH = os.path.join("data", "processed", "projects.json")
 
 JOIN_KEY = "WORK_RECOMMENDATION_DTL_ID"
@@ -160,6 +162,8 @@ def init_project_record(project_id, sanctioned_row):
     record["last_expenditure_date"] = None
     record["vendors"] = []
     record["work_ids"] = []
+    record["official_work_ids"] = []
+    record["has_official_attachment"] = False
 
     return record
 
@@ -240,7 +244,73 @@ def apply_expenditure_aggregates(record, agg, stats):
         stats["projects_with_multiple_work_ids"] += 1
 
 
-def build_projects(sanctioned_lookup, expenditure_aggregates, stats):
+def parse_official_work_id(value):
+    """Returns a numeric completed-work WORK_ID, or None when malformed."""
+    if isinstance(value, bool) or is_missing(value):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip())
+    return None
+
+
+def has_completed_attachment(row):
+    """Conservatively recognizes completed-work attachment availability."""
+    return row.get("FILE_STATUS") is True and not is_missing(row.get("ATTACH_ID"))
+
+
+def aggregate_completed_works(completed_rows, sanctioned_lookup, stats):
+    """Groups numeric official WORK_ID values and attachment availability by project."""
+    aggregates = {}
+
+    for position, row in enumerate(completed_rows, start=1):
+        if not isinstance(row, dict):
+            raise ValueError(f"Completed-work record {position} must be an object")
+
+        project_id = row.get(JOIN_KEY)
+        if is_missing(project_id):
+            stats["completed_rows_skipped_missing_id"] += 1
+            continue
+        stats["completed_rows_processed"] += 1
+
+        if project_id not in sanctioned_lookup:
+            stats["completed_ids_not_in_sanctioned"] += 1
+            continue
+
+        aggregate = aggregates.setdefault(project_id, {
+            "official_work_ids": set(),
+            "has_official_attachment": False,
+        })
+        official_work_id = parse_official_work_id(row.get("WORK_ID"))
+        if official_work_id is None:
+            stats["completed_rows_malformed_work_id"] += 1
+        else:
+            aggregate["official_work_ids"].add(official_work_id)
+
+        if has_completed_attachment(row):
+            aggregate["has_official_attachment"] = True
+
+    return aggregates
+
+
+def apply_completed_work_aggregates(record, aggregate, stats):
+    """Adds official completed-work identifiers without changing textual work_ids."""
+    official_work_ids = sorted(aggregate["official_work_ids"])
+    record["official_work_ids"] = official_work_ids
+    record["has_official_attachment"] = aggregate["has_official_attachment"]
+    if len(official_work_ids) > 1:
+        stats["projects_with_multiple_official_work_ids"] += 1
+    if record["has_official_attachment"]:
+        stats["projects_with_official_attachment"] += 1
+
+
+def build_projects(
+    sanctioned_lookup,
+    expenditure_aggregates,
+    completed_work_aggregates,
+    stats,
+):
     """Builds the final list of project records."""
     projects = []
 
@@ -253,6 +323,10 @@ def build_projects(sanctioned_lookup, expenditure_aggregates, stats):
             stats["projects_with_expenditure"] += 1
         else:
             stats["projects_without_expenditure"] += 1
+
+        completed_aggregate = completed_work_aggregates.get(project_id)
+        if completed_aggregate:
+            apply_completed_work_aggregates(record, completed_aggregate, stats)
 
         projects.append(record)
 
@@ -292,18 +366,18 @@ def print_summary(stats, projects_written, output_path):
     print(f"Expenditure IDs not matching sanctioned projects: {stats['expenditure_ids_not_in_sanctioned']}")
     print(f"Malformed FUND_DISBURSED_AMT values: {stats['malformed_fund_disbursed_amt']}")
     print(f"Projects with multiple distinct WORK_ID values: {stats['projects_with_multiple_work_ids']}")
+    print(f"Completed-work rows processed: {stats['completed_rows_processed']}")
+    print(f"Completed-work rows skipped (missing project ID): {stats['completed_rows_skipped_missing_id']}")
+    print(f"Completed-work IDs not matching sanctioned projects: {stats['completed_ids_not_in_sanctioned']}")
+    print(f"Completed-work rows with malformed WORK_ID: {stats['completed_rows_malformed_work_id']}")
+    print(f"Projects with multiple official WORK_ID values: {stats['projects_with_multiple_official_work_ids']}")
+    print(f"Projects with official attachment metadata: {stats['projects_with_official_attachment']}")
     print(f"Output path: {output_path}")
 
 
-def main():
-    try:
-        sanctioned_rows = load_json_list(SANCTIONED_PATH)
-        expenditure_rows = load_json_list(EXPENDITURE_PATH)
-    except (FileNotFoundError, ValueError, json.JSONDecodeError) as e:
-        print(f"ERROR: Failed to load raw data: {e}")
-        sys.exit(1)
-
-    stats = {
+def init_stats():
+    """Creates counters used while joining raw project datasets."""
+    return {
         "valid_sanctioned_projects": 0,
         "expenditure_rows_processed": 0,
         "expenditure_skipped_missing_id": 0,
@@ -312,13 +386,39 @@ def main():
         "projects_with_expenditure": 0,
         "projects_without_expenditure": 0,
         "projects_with_multiple_work_ids": 0,
+        "completed_rows_processed": 0,
+        "completed_rows_skipped_missing_id": 0,
+        "completed_ids_not_in_sanctioned": 0,
+        "completed_rows_malformed_work_id": 0,
+        "projects_with_multiple_official_work_ids": 0,
+        "projects_with_official_attachment": 0,
     }
+
+
+def main():
+    try:
+        sanctioned_rows = load_json_list(SANCTIONED_PATH)
+        expenditure_rows = load_json_list(EXPENDITURE_PATH)
+        completed_rows = load_json_list(WORKS_COMPLETED_PATH)
+    except (FileNotFoundError, ValueError, json.JSONDecodeError) as e:
+        print(f"ERROR: Failed to load raw data: {e}")
+        sys.exit(1)
+
+    stats = init_stats()
 
     sanctioned_lookup, valid_count = build_sanctioned_lookup(sanctioned_rows)
     stats["valid_sanctioned_projects"] = valid_count
 
     expenditure_aggregates = aggregate_expenditure(expenditure_rows, sanctioned_lookup, stats)
-    projects = build_projects(sanctioned_lookup, expenditure_aggregates, stats)
+    completed_work_aggregates = aggregate_completed_works(
+        completed_rows, sanctioned_lookup, stats
+    )
+    projects = build_projects(
+        sanctioned_lookup,
+        expenditure_aggregates,
+        completed_work_aggregates,
+        stats,
+    )
 
     try:
         save_json(projects, OUTPUT_PATH)
@@ -333,4 +433,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    

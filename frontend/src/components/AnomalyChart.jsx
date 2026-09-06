@@ -11,7 +11,7 @@ const COLORS = {
 /**
  * AnomalyChart — donut visualization of anomaly-type distribution.
  * This component owns all chart/graph rendering for anomaly types.
- * RiskBadge is not involved here; it only ever renders HIGH/MEDIUM/LOW.
+ * RiskBadge is not involved here; it renders overall risk levels.
  *
  * Props:
  *  - data: [{ key, label, value, pct }]

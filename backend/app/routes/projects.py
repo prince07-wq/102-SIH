@@ -10,18 +10,23 @@ response types).  All data access and filtering is delegated to
 project_service.py.  This layer does NOT read projects.json directly.
 """
 
+import mimetypes
+import os
 from typing import Optional
+from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from app.schemas.project import (
     ProjectAggregatesResponse,
     ProjectFilterOptions,
+    ProjectEvidenceResponse,
     ProjectListResponse,
     ProjectRecord,
 )
 from app.services import project_service
+from app.services import evidence_service
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
@@ -120,6 +125,32 @@ def export_projects(
                 'attachment; filename="mplads-filtered-projects.csv"'
             )
         },
+    )
+
+
+@router.get("/{project_id}/evidence", response_model=ProjectEvidenceResponse)
+def get_project_evidence(project_id: str):
+    """Fetches and processes official evidence only when explicitly requested."""
+    try:
+        return evidence_service.get_project_evidence(project_id)
+    except evidence_service.ProjectNotFoundError:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+
+@router.get("/{project_id}/evidence/files/{asset_path:path}")
+def get_project_evidence_file(project_id: str, asset_path: str):
+    """Serves an original or extracted file from the local evidence cache."""
+    if project_service.get_project_by_id(project_id) is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    filepath = evidence_service.get_cached_asset(project_id, asset_path)
+    if filepath is None:
+        raise HTTPException(status_code=404, detail="Evidence file not found")
+    media_type = mimetypes.guess_type(filepath)[0]
+    encoded_name = quote(os.path.basename(filepath), safe="")
+    return FileResponse(
+        filepath,
+        media_type=media_type or "application/octet-stream",
+        headers={"Content-Disposition": f"inline; filename*=UTF-8''{encoded_name}"},
     )
 
 

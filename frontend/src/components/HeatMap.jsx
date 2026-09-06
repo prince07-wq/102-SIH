@@ -20,8 +20,9 @@ function mix(a, b, t) {
 }
 
 function riskLabel(score) {
-  if (score >= 70) return 'High';
-  if (score >= 40) return 'Medium';
+  if (score >= 80) return 'Critical';
+  if (score >= 50) return 'High';
+  if (score >= 20) return 'Moderate';
   return 'Low';
 }
 
@@ -31,7 +32,7 @@ function riskLabel(score) {
  * coordinates, since the frontend has no verified per-project GPS data.
  *
  * Props:
- *  - data: [{ state, score }]
+ *  - data: [{ state, score, projectCount }]
  */
 export default function HeatMap({ data = [] }) {
   const [sortMode, setSortMode] = useState('score');
@@ -48,7 +49,7 @@ export default function HeatMap({ data = [] }) {
       <div className="heatmap__header">
         <div>
           <h3 className="panel-title">Risk Heatmap (India)</h3>
-          <p className="panel-subtitle">State-level risk intensity across all works analysed</p>
+          <p className="panel-subtitle">Average overall risk across the complete matching dataset</p>
         </div>
         <select
           className="heatmap__select"
@@ -67,7 +68,7 @@ export default function HeatMap({ data = [] }) {
             key={s.state}
             className="heatmap__tile"
             style={{ background: scoreToColor(s.score) }}
-            title={`${s.state}: ${s.score} (${riskLabel(s.score)} risk)`}
+            title={`${s.state}: ${s.score} average risk across ${s.projectCount} project(s) (${riskLabel(s.score)})`}
           >
             <span className="heatmap__tile-name">{s.state}</span>
             <span className="heatmap__tile-score">{s.score}</span>

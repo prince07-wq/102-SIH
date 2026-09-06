@@ -41,14 +41,18 @@ export default function Insights({ insights = [] }) {
     <div className="insights">
       <h3 className="panel-title">AI Insights</h3>
 
-      <ul className="insights__list">
-        {insights.map((item) => (
-          <li key={item.id} className={`insights__item insights__item--${item.type}`}>
-            <span className="insights__icon">{ICONS[item.type] || ICONS.cost}</span>
-            <p className="insights__text">{item.text}</p>
-          </li>
-        ))}
-      </ul>
+      {insights.length === 0 ? (
+        <p className="insights__text">No flagged risk components in the complete matching result set.</p>
+      ) : (
+        <ul className="insights__list">
+          {insights.map((item) => (
+            <li key={item.id} className={`insights__item insights__item--${item.type}`}>
+              <span className="insights__icon">{ICONS[item.type] || ICONS.cost}</span>
+              <p className="insights__text">{item.text}</p>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
