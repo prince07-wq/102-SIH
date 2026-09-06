@@ -2,16 +2,10 @@ import { useMemo, useState } from 'react';
 import IndiaMap from '@react-map/india';
 import { formatNumberIN } from '../utils/format';
 import { buildIndiaMapModel, scoreToColor, selectMapState, sortMapRecords } from './heatMapModel';
+import { INDIA_MAP_LABELS } from './heatMapLabels';
 import './HeatMap.css';
 
 const IndiaMapComponent = IndiaMap.default ?? IndiaMap;
-const MAP_LABELS = [
-  ['IN-LA', 'Ladakh', 37, 8], ['IN-JK', 'J&K', 29, 17], ['IN-RJ', 'Rajasthan', 24, 39],
-  ['IN-UP', 'Uttar Pradesh', 47, 37], ['IN-GJ', 'Gujarat', 17, 50], ['IN-MP', 'Madhya Pradesh', 39, 50],
-  ['IN-BR', 'Bihar', 65, 42], ['IN-MH', 'Maharashtra', 31, 60], ['IN-CT', 'Chhattisgarh', 49, 56],
-  ['IN-OR', 'Odisha', 60, 58], ['IN-KA', 'Karnataka', 31, 72], ['IN-TG', 'Telangana', 44, 66],
-  ['IN-AP', 'Andhra Pradesh', 49, 73], ['IN-TN', 'Tamil Nadu', 40, 85], ['IN-AS', 'Assam', 80, 40],
-];
 
 /** India choropleth using the dashboard's already-loaded aggregate data. */
 export default function HeatMap({ data = [], onApplyState }) {
@@ -78,9 +72,23 @@ export default function HeatMap({ data = [], onApplyState }) {
                 strokeColor="rgba(255, 255, 255, 0.95)" strokeWidth={1.15} hoverColor={undefined}
                 selectColor={scoreToColor(selected?.score)} hints={false} onSelect={handleLibrarySelect} />
             </div>
-            <div className="heatmap__labels" aria-hidden="true">
-              {MAP_LABELS.map(([id, label, left, top]) => <span key={id} style={{ left: `${left}%`, top: `${top}%` }}>{label}</span>)}
-            </div>
+            <svg className="heatmap__labels" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+              <g className="heatmap__label-lines">
+                {INDIA_MAP_LABELS.filter((label) => label.callout).flatMap((label) => label.targets.map(([targetX, targetY], index) => (
+                  <line key={`${label.id}-${index}`} x1={targetX} y1={targetY} x2={label.x} y2={label.y} />
+                )))}
+              </g>
+              <g className="heatmap__label-text">
+                {INDIA_MAP_LABELS.map((label) => (
+                  <text key={label.id} x={label.x} y={label.y} textAnchor={label.anchor ?? 'middle'}
+                    className={label.callout ? 'is-callout' : 'is-internal'}>
+                    {label.lines.map((line, index) => (
+                      <tspan key={line} x={label.x} dy={index === 0 ? -((label.lines.length - 1) * 1.05) : 2.1}>{line}</tspan>
+                    ))}
+                  </text>
+                ))}
+              </g>
+            </svg>
             {tooltip && <div className="heatmap__tooltip" role="status" style={{ left: tooltip.x, top: tooltip.y }}>
               <strong>{tooltip.record.state}</strong>
               {tooltip.record.score !== null && <span>Avg. Risk Score: {tooltip.record.score}</span>}
