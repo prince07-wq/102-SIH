@@ -48,6 +48,7 @@ export default function Dashboard() {
   const [filterOptions, setFilterOptions] = useState(FALLBACK_FILTER_OPTIONS);
   const [pageState, setPageState] = useState({ page: 1, signature: '' });
   const [briefOpen, setBriefOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const querySignature = `${JSON.stringify(filters)}|${search}`;
   const page = pageState.signature === querySignature ? pageState.page : 1;
   const scope = useMemo(() => ({ ...filters, search }), [filters, search]);
@@ -132,7 +133,15 @@ export default function Dashboard() {
         <div><h1 className="dashboard__title">Overview</h1><p className="dashboard__subtitle">Intelligence from processed MPLADS projects, explainable risk signals, and behavioral anomaly analysis.</p></div>
         <div className="dashboard__page-controls">
           <button type="button" className="dashboard__control-btn"><IconCalendar />All available records</button>
-          <button type="button" className="dashboard__control-btn"><IconFilter />Filters</button>
+          <button
+            type="button"
+            className={`dashboard__control-btn ${filtersOpen ? 'is-active' : ''}`}
+            onClick={() => setFiltersOpen((open) => !open)}
+            aria-expanded={filtersOpen}
+            aria-controls="dashboard-filters"
+          >
+            <IconFilter />Filters
+          </button>
         </div>
       </div>
 
@@ -163,7 +172,7 @@ export default function Dashboard() {
 
       <div className="dashboard__work-row">
         <div className="dashboard__work-main">
-          <div className="dashboard__filters">
+          {filtersOpen && <div className="dashboard__filters" id="dashboard-filters">
             <FilterSelect label="Risk" value={filters.risk} onChange={(value) => updateFilter('risk', value)} options={filterOptions.riskLevels} />
             <FilterSelect label="State" value={filters.state} onChange={(value) => updateFilter('state', value)} options={filterOptions.states} />
             <FilterSelect label="Category" value={filters.category} onChange={(value) => updateFilter('category', value)} options={filterOptions.categories} />
@@ -172,7 +181,7 @@ export default function Dashboard() {
             <FilterSelect label="Hybrid result" value={filters.mlRuleAgreement} onChange={(value) => updateFilter('mlRuleAgreement', value)} options={ML_AGREEMENT_OPTIONS} />
             {search && <span className="dashboard__search-scope">Search: “{search}” · {formatNumberIN(projectPage.total)} results</span>}
             {hasActiveFilters && <button type="button" className="dashboard__reset" onClick={resetFilters}>Reset</button>}
-          </div>
+          </div>}
           <RiskyProj
             projects={projectPage.projects}
             total={projectPage.total}

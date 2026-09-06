@@ -62,6 +62,11 @@
   color: var(--text-primary);
 }
 
+.dashboard__control-btn.is-active {
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
+}
+
 /* ---- stat cards ---- */
 
 .dashboard__stats {

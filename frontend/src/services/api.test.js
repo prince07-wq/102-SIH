@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
@@ -10,6 +11,7 @@ import {
   getProjectExportUrl,
   getApiAssetUrl,
   getProjectEvidence,
+  getProjects,
 } from './api.js';
 import {
   buildMlPresentation,
@@ -52,6 +54,43 @@ test('project queries preserve the backend ML filter names', () => {
   assert.equal(query.get('ml_is_anomaly'), 'true');
   assert.equal(query.get('ml_anomaly_level'), 'HIGH');
   assert.equal(query.get('ml_rule_agreement'), 'ML_ONLY');
+});
+
+test('Filter button opens the existing dashboard filter panel', () => {
+  const dashboardSource = readFileSync(new URL('../pages/Dashboard.jsx', import.meta.url), 'utf8');
+  assert.match(dashboardSource, /onClick=\{\(\) => setFiltersOpen\(\(open\) => !open\)\}/);
+  assert.match(dashboardSource, /aria-expanded=\{filtersOpen\}/);
+  assert.match(dashboardSource, /filtersOpen && <div className="dashboard__filters" id="dashboard-filters">/);
+});
+
+test('applying existing and ML filters updates the backend project request', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    calls.push(url);
+    return { ok: true, json: async () => ({ total: 1, projects: [{ projectId: '133312' }] }) };
+  };
+
+  try {
+    const result = await getProjects({
+      risk: 'HIGH', state: 'Karnataka', category: 'Roads',
+      mlIsAnomaly: 'true', mlAnomalyLevel: 'HIGH', mlRuleAgreement: 'ML_ONLY',
+      page: 1, pageSize: 8,
+    });
+    const requestUrl = new URL(calls[0]);
+    assert.equal(requestUrl.pathname, '/api/projects');
+    assert.equal(requestUrl.searchParams.get('risk'), 'HIGH');
+    assert.equal(requestUrl.searchParams.get('state'), 'Karnataka');
+    assert.equal(requestUrl.searchParams.get('category'), 'Roads');
+    assert.equal(requestUrl.searchParams.get('ml_is_anomaly'), 'true');
+    assert.equal(requestUrl.searchParams.get('ml_anomaly_level'), 'HIGH');
+    assert.equal(requestUrl.searchParams.get('ml_rule_agreement'), 'ML_ONLY');
+    assert.equal(requestUrl.searchParams.get('page'), '1');
+    assert.equal(requestUrl.searchParams.get('page_size'), '8');
+    assert.equal(result.total, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test('eligible ML project presentation uses the backend score and anomaly flag', () => {
