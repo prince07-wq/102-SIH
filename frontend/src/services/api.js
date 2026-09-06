@@ -2,6 +2,25 @@
 //
 // Data access and dashboard aggregation for the MPLADS FastAPI backend.
 
+/**
+ * Frozen backend ML fields carried by each project record.
+ * @typedef {Object} ProjectMlFields
+ * @property {boolean} mlEligible
+ * @property {string|null} mlStatus
+ * @property {number|null} mlRawScore
+ * @property {number|null} mlAnomalyValue
+ * @property {number|null} mlAnomalyScore
+ * @property {boolean} mlIsAnomaly
+ * @property {string|null} mlAnomalyLevel
+ * @property {string} mlRuleAgreement
+ * @property {number|null} mlProjectAgeDays
+ * @property {number|null} mlDaysToFirstExpenditure
+ * @property {number|null} mlExpenditureRecordCount
+ * @property {number|null} mlUniqueVendorCount
+ * @property {number|null} mlDisbursementRatio
+ * @property {string|null} mlWorkStage
+ */
+
 const configuredBaseUrl = import.meta.env?.VITE_API_BASE_URL;
 export const API_BASE_URL = (configuredBaseUrl || 'http://localhost:8000').replace(/\/$/, '');
 
@@ -27,12 +46,25 @@ function appendParam(params, key, value) {
   }
 }
 
-export function buildProjectQuery({ risk, state, category, search } = {}) {
+export function buildProjectQuery({
+  risk,
+  state,
+  category,
+  search,
+  mlIsAnomaly,
+  mlAnomalyLevel,
+  mlRuleAgreement,
+  mlEligible,
+} = {}) {
   const params = new URLSearchParams();
   appendParam(params, 'risk', risk);
   appendParam(params, 'state', state);
   appendParam(params, 'category', category);
   appendParam(params, 'search', search?.trim());
+  appendParam(params, 'ml_is_anomaly', mlIsAnomaly);
+  appendParam(params, 'ml_anomaly_level', mlAnomalyLevel);
+  appendParam(params, 'ml_rule_agreement', mlRuleAgreement);
+  appendParam(params, 'ml_eligible', mlEligible);
   return params;
 }
 
@@ -42,17 +74,17 @@ export function getProjectExportUrl(filters = {}) {
 }
 
 export function getProjects(
-  { page = 1, pageSize = 8, risk, state, category, search } = {},
+  { page = 1, pageSize = 8, ...filters } = {},
   signal,
 ) {
-  const params = buildProjectQuery({ risk, state, category, search });
+  const params = buildProjectQuery(filters);
   params.set('page', String(page));
   params.set('page_size', String(pageSize));
   return request(`/api/projects?${params}`, { signal });
 }
 
-export function getProjectAggregates({ risk, state, category, search } = {}, signal) {
-  const params = buildProjectQuery({ risk, state, category, search });
+export function getProjectAggregates(filters = {}, signal) {
+  const params = buildProjectQuery(filters);
   const query = params.toString();
   return request(`/api/projects/aggregates${query ? `?${query}` : ''}`, { signal });
 }

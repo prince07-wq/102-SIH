@@ -1,93 +1,49 @@
 .heatmap {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  padding: 18px 20px 16px;
-  box-shadow: var(--shadow-xs);
-  display: flex;
-  flex-direction: column;
-  height: 100%;
+  background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);
+  padding: 18px 20px 16px; box-shadow: var(--shadow-xs); display: flex; flex-direction: column; height: 100%;
 }
+.heatmap__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.heatmap__select { border: 1px solid var(--border-medium); background: var(--bg-panel); border-radius: var(--radius-sm); padding: 5px 8px; font-size: 12px; color: var(--text-secondary); flex-shrink: 0; }
+.heatmap__content { display: grid; grid-template-columns: minmax(0, 3fr) minmax(180px, 1fr); gap: 18px; flex: 1; min-height: 0; }
+.heatmap__map-column { min-width: 0; }
+.heatmap__map { position: relative; width: min(100%, 440px); margin: 0 auto; }
+.heatmap__svg { width: 100%; }
+.heatmap__svg .map { width: 100% !important; }
+.heatmap__svg svg { display: block; width: 100%; height: auto; max-height: 460px; }
+.heatmap__svg path { stroke: rgba(255, 255, 255, 0.95); stroke-width: 1.15; vector-effect: non-scaling-stroke; cursor: pointer; transition: filter 120ms ease, stroke-width 120ms ease; }
+.heatmap__svg path:hover { filter: brightness(0.94); stroke: #42584d; stroke-width: 2; }
+.heatmap__labels { position: absolute; inset: 0; pointer-events: none; }
+.heatmap__labels span { position: absolute; transform: translate(-50%, -50%); max-width: 68px; color: rgba(28, 36, 31, 0.8); font-size: 8px; font-weight: 650; line-height: 1.05; text-align: center; text-shadow: 0 1px rgba(255, 255, 255, 0.75); }
+.heatmap__tooltip { position: absolute; z-index: 4; display: flex; flex-direction: column; gap: 3px; min-width: 148px; padding: 9px 11px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: rgba(24, 34, 29, 0.95); color: #fff; box-shadow: var(--shadow-md); font-size: 11px; pointer-events: none; }
+.heatmap__tooltip strong { font-size: 12px; }
+.heatmap__tooltip span { color: rgba(255, 255, 255, 0.82); }
+.heatmap__details { min-width: 0; padding: 14px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-panel); }
+.heatmap__details-eyebrow { color: var(--text-tertiary); font-size: 10px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; }
+.heatmap__details h4 { margin: 5px 0 12px; color: var(--text-primary); font-size: 16px; }
+.heatmap__details dl { margin: 0; }
+.heatmap__details dl div { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border-subtle); }
+.heatmap__details dt { color: var(--text-secondary); font-size: 11px; }
+.heatmap__details dd { margin: 0; color: var(--text-primary); font: 650 12px var(--font-mono); text-align: right; }
+.heatmap__empty { color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
+.heatmap__cta { width: 100%; margin-top: 12px; padding: 8px 9px; border: 1px solid var(--brand-primary); border-radius: var(--radius-sm); background: var(--bg-card); color: var(--brand-primary); font-size: 11px; font-weight: 650; cursor: pointer; }
+.heatmap__cta:hover { background: var(--brand-primary); color: #fff; }
+.heatmap__ranking { display: flex; flex-direction: column; gap: 2px; max-height: 145px; margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border-subtle); overflow-y: auto; }
+.heatmap__ranking button { display: flex; justify-content: space-between; gap: 8px; padding: 5px 6px; border: 0; border-radius: 4px; background: transparent; color: var(--text-secondary); font-size: 10px; text-align: left; cursor: pointer; }
+.heatmap__ranking button:hover, .heatmap__ranking button.is-selected { background: var(--bg-card); color: var(--text-primary); }
+.heatmap__ranking button strong { font-family: var(--font-mono); }
+.heatmap__legend { margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--border-subtle); }
+.heatmap__legend-label { font-size: 11px; color: var(--text-tertiary); font-weight: 500; }
+.heatmap__legend-bar { height: 6px; border-radius: 4px; margin-top: 6px; background: linear-gradient(90deg, rgb(201, 224, 210), rgb(240, 191, 122), rgb(200, 64, 44)); }
+.heatmap__legend-ends { display: flex; justify-content: space-between; margin-top: 4px; color: var(--text-tertiary); font-size: 10px; }
 
-.heatmap__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
+@media (max-width: 760px) {
+  .heatmap { padding: 16px; }
+  .heatmap__content { grid-template-columns: 1fr; }
+  .heatmap__details { order: 2; }
+  .heatmap__ranking { max-height: 120px; }
 }
-
-.heatmap__select {
-  border: 1px solid var(--border-medium);
-  background: var(--bg-panel);
-  border-radius: var(--radius-sm);
-  padding: 5px 8px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  flex-shrink: 0;
-}
-
-.heatmap__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
-  gap: 6px;
-  max-height: 300px;
-  overflow-y: auto;
-  padding-right: 2px;
-}
-
-.heatmap__tile {
-  border-radius: var(--radius-sm);
-  padding: 9px 10px 8px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  min-height: 56px;
-  cursor: default;
-}
-
-.heatmap__tile-name {
-  font-size: 10.5px;
-  font-weight: 600;
-  color: rgba(20, 24, 20, 0.78);
-  line-height: 1.25;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.heatmap__tile-score {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  font-weight: 600;
-  color: rgba(15, 18, 15, 0.85);
-  margin-top: 4px;
-}
-
-.heatmap__legend {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border-subtle);
-}
-
-.heatmap__legend-label {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  font-weight: 500;
-}
-
-.heatmap__legend-bar {
-  height: 6px;
-  border-radius: 4px;
-  margin-top: 6px;
-  background: linear-gradient(90deg, #c9e0d2, #f0bf7a, #c8402c);
-}
-
-.heatmap__legend-ends {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  color: var(--text-tertiary);
-  margin-top: 4px;
+@media (max-width: 480px) {
+  .heatmap__header { align-items: stretch; flex-direction: column; }
+  .heatmap__select { align-self: flex-start; }
+  .heatmap__labels span { font-size: 6px; }
 }

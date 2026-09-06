@@ -1,48 +1,60 @@
 import { useMemo, useState } from 'react';
+import IndiaMap from '@react-map/india';
+import { formatNumberIN } from '../utils/format';
+import { buildIndiaMapModel, scoreToColor, selectMapState, sortMapRecords } from './heatMapModel';
 import './HeatMap.css';
 
-function scoreToColor(score) {
-  // 0 -> green, 50 -> amber, 100 -> red, interpolated in two stops
-  const clamped = Math.max(0, Math.min(100, score));
-  if (clamped <= 50) {
-    const t = clamped / 50;
-    return mix([201, 224, 210], [240, 191, 122], t); // low-green -> amber
-  }
-  const t = (clamped - 50) / 50;
-  return mix([240, 191, 122], [200, 64, 44], t); // amber -> high-red
-}
+const IndiaMapComponent = IndiaMap.default ?? IndiaMap;
+const MAP_LABELS = [
+  ['IN-LA', 'Ladakh', 37, 8], ['IN-JK', 'J&K', 29, 17], ['IN-RJ', 'Rajasthan', 24, 39],
+  ['IN-UP', 'Uttar Pradesh', 47, 37], ['IN-GJ', 'Gujarat', 17, 50], ['IN-MP', 'Madhya Pradesh', 39, 50],
+  ['IN-BR', 'Bihar', 65, 42], ['IN-MH', 'Maharashtra', 31, 60], ['IN-CT', 'Chhattisgarh', 49, 56],
+  ['IN-OR', 'Odisha', 60, 58], ['IN-KA', 'Karnataka', 31, 72], ['IN-TG', 'Telangana', 44, 66],
+  ['IN-AP', 'Andhra Pradesh', 49, 73], ['IN-TN', 'Tamil Nadu', 40, 85], ['IN-AS', 'Assam', 80, 40],
+];
 
-function mix(a, b, t) {
-  const r = Math.round(a[0] + (b[0] - a[0]) * t);
-  const g = Math.round(a[1] + (b[1] - a[1]) * t);
-  const bl = Math.round(a[2] + (b[2] - a[2]) * t);
-  return `rgb(${r}, ${g}, ${bl})`;
-}
-
-function riskLabel(score) {
-  if (score >= 80) return 'Critical';
-  if (score >= 50) return 'High';
-  if (score >= 20) return 'Moderate';
-  return 'Low';
-}
-
-/**
- * HeatMap — India state-level risk visualization.
- * Renders a proportionally-sized tile grid rather than invented geographic
- * coordinates, since the frontend has no verified per-project GPS data.
- *
- * Props:
- *  - data: [{ state, score, projectCount }]
- */
-export default function HeatMap({ data = [] }) {
+/** India choropleth using the dashboard's already-loaded aggregate data. */
+export default function HeatMap({ data = [], onApplyState }) {
   const [sortMode, setSortMode] = useState('score');
+  const [selectedId, setSelectedId] = useState(null);
+  const [tooltip, setTooltip] = useState(null);
+  const model = useMemo(() => buildIndiaMapModel(
+    data,
+    import.meta.env.DEV ? (message) => console.warn(message) : null,
+  ), [data]);
+  const sorted = useMemo(() => sortMapRecords(model.records, sortMode), [model.records, sortMode]);
+  const selected = model.byId[selectedId] ?? sorted[0] ?? null;
+  const cityColors = useMemo(() => Object.fromEntries(model.features.flatMap((feature) =>
+    feature.mapNames.map((mapName) => [mapName, scoreToColor(model.byId[feature.id]?.score)]),
+  )), [model]);
+  const selectedStyle = useMemo(() => selected
+    ? model.features.find((feature) => feature.id === selected.id)?.mapNames
+      .map((mapName) => `.heatmap__map path[id^="${mapName}-"] { stroke: #172f24 !important; stroke-width: 3 !important; }`).join('\n')
+    : '', [model.features, selected]);
 
-  const sorted = useMemo(() => {
-    const copy = [...data];
-    if (sortMode === 'score') copy.sort((a, b) => b.score - a.score);
-    else copy.sort((a, b) => a.state.localeCompare(b.state));
-    return copy;
-  }, [data, sortMode]);
+  function getRecordFromEvent(event) {
+    const path = event.target.closest?.('path[id]');
+    if (!path) return null;
+    const mapName = Object.keys(model.byMapName).find((name) => path.id.startsWith(`${name}-`));
+    return mapName ? model.byMapName[mapName] : null;
+  }
+
+  function handlePointerMove(event) {
+    const record = getRecordFromEvent(event);
+    if (!record) return setTooltip(null);
+    const bounds = event.currentTarget.getBoundingClientRect();
+    setTooltip({ record, x: event.clientX - bounds.left + 12, y: event.clientY - bounds.top + 12 });
+  }
+
+  function handleMapClick(event) {
+    const record = getRecordFromEvent(event);
+    if (record) selectMapState(record.id, model.byId, (next) => setSelectedId(next.id));
+  }
+
+  function handleLibrarySelect(mapName) {
+    const record = model.byMapName[mapName];
+    if (record) setSelectedId(record.id);
+  }
 
   return (
     <div className="heatmap">
@@ -51,38 +63,53 @@ export default function HeatMap({ data = [] }) {
           <h3 className="panel-title">Risk Heatmap (India)</h3>
           <p className="panel-subtitle">Average overall risk across the complete matching dataset</p>
         </div>
-        <select
-          className="heatmap__select"
-          value={sortMode}
-          onChange={(e) => setSortMode(e.target.value)}
-          aria-label="Sort states"
-        >
-          <option value="score">By Risk Score</option>
-          <option value="name">By State</option>
+        <select className="heatmap__select" value={sortMode} onChange={(event) => setSortMode(event.target.value)} aria-label="Sort states">
+          <option value="score">By Risk Score</option><option value="name">By State</option>
         </select>
       </div>
 
-      <div className="heatmap__grid">
-        {sorted.map((s) => (
-          <div
-            key={s.state}
-            className="heatmap__tile"
-            style={{ background: scoreToColor(s.score) }}
-            title={`${s.state}: ${s.score} average risk across ${s.projectCount} project(s) (${riskLabel(s.score)})`}
-          >
-            <span className="heatmap__tile-name">{s.state}</span>
-            <span className="heatmap__tile-score">{s.score}</span>
+      <div className="heatmap__content">
+        <div className="heatmap__map-column">
+          <div className="heatmap__map" aria-label="India state and union territory risk map"
+            onPointerMove={handlePointerMove} onPointerLeave={() => setTooltip(null)} onClick={handleMapClick}>
+            <style>{selectedStyle}</style>
+            <div className="heatmap__svg">
+              <IndiaMapComponent type="select-single" size={500} mapColor="rgb(226, 231, 227)" cityColors={cityColors}
+                strokeColor="rgba(255, 255, 255, 0.95)" strokeWidth={1.15} hoverColor={undefined}
+                selectColor={scoreToColor(selected?.score)} hints={false} onSelect={handleLibrarySelect} />
+            </div>
+            <div className="heatmap__labels" aria-hidden="true">
+              {MAP_LABELS.map(([id, label, left, top]) => <span key={id} style={{ left: `${left}%`, top: `${top}%` }}>{label}</span>)}
+            </div>
+            {tooltip && <div className="heatmap__tooltip" role="status" style={{ left: tooltip.x, top: tooltip.y }}>
+              <strong>{tooltip.record.state}</strong>
+              {tooltip.record.score !== null && <span>Avg. Risk Score: {tooltip.record.score}</span>}
+              {tooltip.record.projectCount !== null && <span>Projects: {formatNumberIN(tooltip.record.projectCount)}</span>}
+            </div>}
           </div>
-        ))}
-      </div>
-
-      <div className="heatmap__legend">
-        <span className="heatmap__legend-label">Risk Score</span>
-        <div className="heatmap__legend-bar" />
-        <div className="heatmap__legend-ends">
-          <span>Low</span>
-          <span>High</span>
+          <div className="heatmap__legend" aria-label="Risk score scale from 0 low risk to 100 high risk">
+            <span className="heatmap__legend-label">Risk Score</span><div className="heatmap__legend-bar" />
+            <div className="heatmap__legend-ends"><span>0 · Low Risk</span><span>100 · High Risk</span></div>
+          </div>
         </div>
+
+        <aside className="heatmap__details" aria-live="polite">
+          <span className="heatmap__details-eyebrow">Selected State / UT</span>
+          {selected ? <>
+            <h4>{selected.state}</h4>
+            <dl>
+              <div><dt>Average Risk Score</dt><dd>{selected.score ?? 'Not available'}</dd></div>
+              <div><dt>Total Projects</dt><dd>{selected.projectCount === null ? 'Not available' : formatNumberIN(selected.projectCount)}</dd></div>
+            </dl>
+            {onApplyState && <button type="button" className="heatmap__cta" onClick={() => onApplyState(selected.backendState)}>
+              View projects in {selected.state} <span aria-hidden="true">→</span>
+            </button>}
+          </> : <p className="heatmap__empty">No state-level risk data is available for this selection.</p>}
+          {sorted.length > 0 && <div className="heatmap__ranking" aria-label="State risk ranking">
+            {sorted.map((record) => <button type="button" key={record.id} className={record.id === selected?.id ? 'is-selected' : ''}
+              onClick={() => setSelectedId(record.id)}><span>{record.state}</span><strong>{record.score ?? '—'}</strong></button>)}
+          </div>}
+        </aside>
       </div>
     </div>
   );

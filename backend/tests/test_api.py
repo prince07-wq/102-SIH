@@ -56,6 +56,20 @@ class TestGetProjects:
             "workIds",
             "officialWorkIds",
             "hasOfficialAttachment",
+            "mlEligible",
+            "mlStatus",
+            "mlRawScore",
+            "mlAnomalyValue",
+            "mlAnomalyScore",
+            "mlIsAnomaly",
+            "mlAnomalyLevel",
+            "mlRuleAgreement",
+            "mlProjectAgeDays",
+            "mlDaysToFirstExpenditure",
+            "mlExpenditureRecordCount",
+            "mlUniqueVendorCount",
+            "mlDisbursementRatio",
+            "mlWorkStage",
             "risk",
             "similarProjects",
         ]
@@ -125,6 +139,32 @@ class TestGetProjectById:
         assert data["workIds"] == ["WS/\t MP620/2024-2025/133312"]
         assert data["officialWorkIds"] == [58590]
         assert data["hasOfficialAttachment"] is True
+
+    def test_eligible_project_exposes_frozen_numeric_ml_scores(self):
+        data = get_json("/api/projects/133166")
+        assert data["mlEligible"] is True
+        assert data["mlStatus"] is None
+        assert isinstance(data["mlRawScore"], float)
+        assert isinstance(data["mlAnomalyValue"], float)
+        assert isinstance(data["mlAnomalyScore"], float)
+
+    def test_noneligible_project_preserves_not_applicable_and_null_scores(self):
+        data = get_json("/api/projects/133167")
+        assert data["mlEligible"] is False
+        assert data["mlStatus"] == "ML_NOT_APPLICABLE"
+        assert data["mlRawScore"] is None
+        assert data["mlAnomalyValue"] is None
+        assert data["mlAnomalyScore"] is None
+        assert data["mlIsAnomaly"] is False
+
+    def test_ml_agreement_values_are_preserved(self):
+        assert get_json("/api/projects/137597")["mlRuleAgreement"] == "ML_ONLY"
+        assert get_json("/api/projects/133697")["mlRuleAgreement"] == "BOTH_HIGH"
+
+    def test_ml_anomaly_flag_is_not_inferred_from_display_level(self):
+        data = get_json("/api/projects/134123")
+        assert data["mlAnomalyLevel"] == "HIGH"
+        assert data["mlIsAnomaly"] is False
 
 
 class TestProjectFilters:
@@ -299,6 +339,20 @@ class TestProjectFilters:
         assert data["categories"]
         assert data["riskLevels"] == ["CRITICAL", "HIGH", "MODERATE", "LOW"]
 
+    def test_ml_filters_use_frozen_artifact_fields(self):
+        assert get_json("/api/projects?ml_eligible=false&page_size=1")["total"] == 22423
+        assert get_json("/api/projects?ml_is_anomaly=true&page_size=1")["total"] == 1799
+        assert get_json("/api/projects?ml_rule_agreement=ML_ONLY&page_size=1")["total"] == 227
+        elevated = get_json(
+            "/api/projects?ml_anomaly_level=HIGH&ml_is_anomaly=false&page_size=5"
+        )
+        assert elevated["total"] > 0
+        assert all(
+            project["mlAnomalyLevel"] == "HIGH"
+            and project["mlIsAnomaly"] is False
+            for project in elevated["projects"]
+        )
+
 
 class TestAlerts:
     def test_alerts_are_paginated(self):
@@ -377,6 +431,11 @@ class TestProjectAggregates:
             "expenditure": 5538,
             "duplicate": 6724,
         }
+        assert data["mlEligibleCount"] == 55656
+        assert data["mlAnomalyCount"] == 1799
+        assert data["mlNotApplicableCount"] == 22423
+        assert data["mlOnlyCount"] == 227
+        assert data["bothHighCount"] == 1572
         assert len(data["stateAggregates"]) == 36
         assert sum(state["projectCount"] for state in data["stateAggregates"]) == 78079
 
@@ -398,6 +457,19 @@ class TestProjectAggregates:
         assert sum(aggregates["riskLevelCounts"].values()) == 12
         assert sum(state["projectCount"] for state in aggregates["stateAggregates"]) == 12
         assert aggregates["riskLevelCounts"]["high"] == 12
+
+    def test_ml_filter_aggregates_cover_the_complete_matching_set(self):
+        params = {"ml_rule_agreement": "ML_ONLY"}
+        aggregates = client.get("/api/projects/aggregates", params=params).json()
+        listing = client.get(
+            "/api/projects", params={**params, "page_size": 5}
+        ).json()
+        assert aggregates["totalProjects"] == listing["total"] == 227
+        assert aggregates["mlEligibleCount"] == 227
+        assert aggregates["mlAnomalyCount"] == 227
+        assert aggregates["mlOnlyCount"] == 227
+        assert aggregates["mlNotApplicableCount"] == 0
+        assert aggregates["bothHighCount"] == 0
 
     def test_table_page_changes_do_not_change_aggregates(self):
         params = {"search": "Karnataka"}

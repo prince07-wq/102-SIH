@@ -52,6 +52,10 @@ def list_projects(
         default=None,
         description="Search project ID, work text, location, MP, or vendor.",
     ),
+    ml_eligible: Optional[bool] = Query(default=None),
+    ml_is_anomaly: Optional[bool] = Query(default=None),
+    ml_anomaly_level: Optional[str] = Query(default=None),
+    ml_rule_agreement: Optional[str] = Query(default=None),
     page: int = Query(default=1, ge=1, description="One-based page number."),
     page_size: int = Query(
         default=50,
@@ -76,6 +80,10 @@ def list_projects(
         state=state,
         category=category,
         search=search,
+        ml_eligible=ml_eligible,
+        ml_is_anomaly=ml_is_anomaly,
+        ml_anomaly_level=ml_anomaly_level,
+        ml_rule_agreement=ml_rule_agreement,
         page=page,
         page_size=page_size,
     )
@@ -93,6 +101,10 @@ def get_project_aggregates(
     state: Optional[str] = Query(default=None),
     category: Optional[str] = Query(default=None),
     search: Optional[str] = Query(default=None),
+    ml_eligible: Optional[bool] = Query(default=None),
+    ml_is_anomaly: Optional[bool] = Query(default=None),
+    ml_anomaly_level: Optional[str] = Query(default=None),
+    ml_rule_agreement: Optional[str] = Query(default=None),
 ):
     """Returns analytics across the complete filtered project result set."""
     return project_service.get_project_aggregates(
@@ -100,6 +112,10 @@ def get_project_aggregates(
         state=state,
         category=category,
         search=search,
+        ml_eligible=ml_eligible,
+        ml_is_anomaly=ml_is_anomaly,
+        ml_anomaly_level=ml_anomaly_level,
+        ml_rule_agreement=ml_rule_agreement,
     )
 
 
@@ -109,6 +125,10 @@ def export_projects(
     state: Optional[str] = Query(default=None),
     category: Optional[str] = Query(default=None),
     search: Optional[str] = Query(default=None),
+    ml_eligible: Optional[bool] = Query(default=None),
+    ml_is_anomaly: Optional[bool] = Query(default=None),
+    ml_anomaly_level: Optional[str] = Query(default=None),
+    ml_rule_agreement: Optional[str] = Query(default=None),
 ):
     """Streams all projects matching the same list and aggregate filters."""
     rows = project_service.iter_project_export(
@@ -116,6 +136,10 @@ def export_projects(
         state=state,
         category=category,
         search=search,
+        ml_eligible=ml_eligible,
+        ml_is_anomaly=ml_is_anomaly,
+        ml_anomaly_level=ml_anomaly_level,
+        ml_rule_agreement=ml_rule_agreement,
     )
     return StreamingResponse(
         rows,
