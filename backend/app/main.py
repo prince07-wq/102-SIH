@@ -17,8 +17,8 @@ What this file does NOT do
 - No ML or risk calculation.
 """
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI  # type: ignore
+from fastapi.middleware.cors import CORSMiddleware  # type: ignore
 
 from app.routes import projects, statistics
 
