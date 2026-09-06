@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import RiskBadge from './RiskBadge';
 import { useSavedProjects } from '../hooks/useSavedProjects';
 import { formatINR } from '../utils/format';
+import { getMlAgreementLabel } from '../utils/mlPresentation';
 import './RiskyProj.css';
 
 const COLUMNS = [
@@ -13,6 +14,7 @@ const COLUMNS = [
   { key: 'workStage', label: 'Work Stage', sortable: false },
   { key: 'riskScore', label: 'Risk Score', sortable: true },
   { key: 'riskLevel', label: 'Risk Level', sortable: false },
+  { key: 'mlRuleAgreement', label: 'Hybrid AI', sortable: false },
 ];
 
 /**
@@ -154,6 +156,11 @@ export default function RiskyProj({
                 <td>
                   <RiskBadge level={p.risk.level} size="sm" showScore={false} />
                 </td>
+                <td>
+                  <span className={`risky-proj__ml-badge risky-proj__ml-badge--${p.mlRuleAgreement?.toLowerCase() || 'unavailable'}`}>
+                    {getMlAgreementLabel(p.mlRuleAgreement)}
+                  </span>
+                </td>
                 <td className="risky-proj__actions">
                   <button
                     type="button"
@@ -176,7 +183,7 @@ export default function RiskyProj({
 
             {loading && (
               <tr>
-                <td colSpan={8} className="risky-proj__empty">
+                <td colSpan={9} className="risky-proj__empty">
                   Loading projects…
                 </td>
               </tr>
@@ -184,7 +191,7 @@ export default function RiskyProj({
 
             {!loading && sorted.length === 0 && (
               <tr>
-                <td colSpan={8} className="risky-proj__empty">
+                <td colSpan={9} className="risky-proj__empty">
                   No projects match the current filters.
                 </td>
               </tr>

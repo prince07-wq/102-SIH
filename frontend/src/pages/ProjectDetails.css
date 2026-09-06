@@ -116,6 +116,162 @@
   font-weight: 600;
 }
 
+/* ---- hybrid AI analysis ---- */
+
+.pd__hybrid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pd__hybrid-heading,
+.pd__analysis-primary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pd__hybrid-eyebrow,
+.pd__analysis-label {
+  color: var(--brand-primary);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pd__hybrid-eyebrow + .panel-title {
+  margin-top: 3px;
+}
+
+.pd__hybrid-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.pd__analysis-card {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+}
+
+.pd__analysis-card--ml {
+  background: var(--bg-card);
+  border-color: var(--border-medium);
+}
+
+.pd__analysis-primary {
+  margin-top: 8px;
+}
+
+.pd__analysis-primary > strong {
+  color: var(--text-primary);
+  font-size: 15px;
+}
+
+.pd__analysis-help,
+.pd__context-note,
+.pd__ml-not-applicable p {
+  margin: 8px 0 0;
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.pd__component-chips {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.pd__component-chips span {
+  padding: 6px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.pd__component-chips span.is-flagged {
+  border-color: var(--risk-high);
+  color: var(--risk-high);
+}
+
+.pd__agreement,
+.pd__ml-status {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.pd__agreement--both_high,
+.pd__agreement--ml_only,
+.pd__ml-status.is-anomaly {
+  background: var(--risk-high-bg);
+  color: var(--risk-high);
+}
+
+.pd__agreement--neither {
+  background: var(--risk-low-bg);
+  color: var(--risk-low);
+}
+
+.pd__ml-meta {
+  display: flex;
+  gap: 8px 18px;
+  flex-wrap: wrap;
+  margin-top: 9px;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+}
+
+.pd__ml-context {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.pd__ml-context > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+}
+
+.pd__ml-context span {
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+
+.pd__ml-context strong,
+.pd__ml-not-applicable strong {
+  color: var(--text-primary);
+  font-size: 11.5px;
+}
+
+.pd__ml-not-applicable {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+}
+
 /* ---- on-demand official evidence ---- */
 
 .pd__official-evidence {
@@ -521,6 +677,12 @@
   }
   .pd__risk-row {
     grid-template-columns: 1fr;
+  }
+  .pd__hybrid-grid {
+    grid-template-columns: 1fr;
+  }
+  .pd__ml-context {
+    grid-template-columns: repeat(2, 1fr);
   }
   .pd__breakdown-row {
     grid-template-columns: 100px 1fr 46px;

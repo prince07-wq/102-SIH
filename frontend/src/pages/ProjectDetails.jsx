@@ -6,6 +6,12 @@ import OfficialEvidence from '../components/OfficialEvidence';
 import { getProjectById } from '../services/api';
 import { useSavedProjects } from '../hooks/useSavedProjects';
 import { formatINR } from '../utils/format';
+import {
+  buildMlPresentation,
+  getMlAgreementLabel,
+  ML_SCORE_EXPLANATION,
+  RISK_SCORE_EXPLANATION,
+} from '../utils/mlPresentation';
 import './ProjectDetails.css';
 
 const RISK_DIMENSIONS = [
@@ -155,6 +161,8 @@ export default function ProjectDetails() {
         </div>
       </div>
 
+      <HybridAIAnalysis project={project} />
+
       <OfficialEvidence key={project.projectId} projectId={project.projectId} />
 
       {/* Overall risk + breakdown */}
@@ -262,6 +270,101 @@ export default function ProjectDetails() {
       {reportOpen && <ProjectReportDialog project={project} onClose={() => setReportOpen(false)} />}
     </div>
   );
+}
+
+function HybridAIAnalysis({ project }) {
+  const ml = buildMlPresentation(project);
+
+  return (
+    <section className="pd__section pd__hybrid" aria-labelledby="hybrid-ai-title">
+      <div className="pd__hybrid-heading">
+        <div>
+          <span className="pd__hybrid-eyebrow">Explainable + behavioral signals</span>
+          <h3 id="hybrid-ai-title" className="panel-title">Hybrid AI Analysis</h3>
+        </div>
+        <span className={`pd__agreement pd__agreement--${project.mlRuleAgreement?.toLowerCase() || 'unavailable'}`}>
+          {getMlAgreementLabel(project.mlRuleAgreement)}
+        </span>
+      </div>
+
+      <div className="pd__hybrid-grid">
+        <article className="pd__analysis-card">
+          <span className="pd__analysis-label">Explainable Risk</span>
+          <div className="pd__analysis-primary">
+            <strong title={RISK_SCORE_EXPLANATION}>
+              Risk Score: {formatScore(project.risk.overallScore)}/100
+            </strong>
+            <RiskBadge level={project.risk.level} size="sm" showScore={false} />
+          </div>
+          <p className="pd__analysis-help">{RISK_SCORE_EXPLANATION}</p>
+          <div className="pd__component-chips" aria-label="Explainable risk components">
+            {RISK_DIMENSIONS.map((dimension) => {
+              const component = project.risk[dimension.key];
+              return (
+                <span key={dimension.key} className={component.flagged ? 'is-flagged' : ''}>
+                  {dimension.label}: {formatScore(component.score)}/100
+                </span>
+              );
+            })}
+          </div>
+        </article>
+
+        <article className="pd__analysis-card pd__analysis-card--ml">
+          <span className="pd__analysis-label">AI Analysis</span>
+          {ml.eligible ? (
+            <>
+              <div className="pd__analysis-primary">
+                <strong title={ML_SCORE_EXPLANATION}>
+                  ML Anomaly Score: {ml.scoreText === 'Unavailable' ? ml.scoreText : `${ml.scoreText}/100`}
+                </strong>
+                <span className={`pd__ml-status ${ml.anomalyDetected ? 'is-anomaly' : ''}`}>
+                  {ml.anomalyStatus}
+                </span>
+              </div>
+              <div className="pd__ml-meta">
+                <span>Level: <strong>{ml.levelText}</strong></span>
+                <span>Hybrid interpretation: <strong>{ml.agreementLabel}</strong></span>
+              </div>
+              <p className="pd__analysis-help">{ML_SCORE_EXPLANATION}</p>
+              <div className="pd__ml-context" aria-label="Investigator context">
+                <ContextValue label="Project age" value={formatDays(project.mlProjectAgeDays)} />
+                <ContextValue label="Work stage" value={project.mlWorkStage} />
+                <ContextValue label="First expenditure delay" value={formatDays(project.mlDaysToFirstExpenditure)} />
+                <ContextValue label="Expenditure records" value={project.mlExpenditureRecordCount} />
+                <ContextValue label="Unique vendors" value={project.mlUniqueVendorCount} />
+                <ContextValue label="Disbursement ratio" value={formatRatio(project.mlDisbursementRatio)} />
+              </div>
+              <p className="pd__context-note">Context describes the project record; it is not proof of wrongdoing.</p>
+            </>
+          ) : (
+            <div className="pd__ml-not-applicable">
+              <strong>{ml.heading}</strong>
+              <p>{ml.explanation}</p>
+            </div>
+          )}
+        </article>
+      </div>
+    </section>
+  );
+}
+
+function ContextValue({ label, value }) {
+  return (
+    <div>
+      <span>{label}</span>
+      <strong>{value === null || value === undefined || value === '' ? '—' : value}</strong>
+    </div>
+  );
+}
+
+function formatDays(value) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
+  return `${Number(value).toLocaleString('en-IN')} days`;
+}
+
+function formatRatio(value) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
+  return Number(value).toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
 }
 
 function InfoField({ label, value, mono }) {

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
@@ -6,10 +7,18 @@ import {
   buildInsights,
   buildStateRiskData,
   buildSummary,
+  buildProjectQuery,
   getProjectExportUrl,
   getApiAssetUrl,
   getProjectEvidence,
+  getProjects,
 } from './api.js';
+import {
+  buildMlPresentation,
+  getMlAgreementLabel,
+  ML_SCORE_EXPLANATION,
+  RISK_SCORE_EXPLANATION,
+} from '../utils/mlPresentation.js';
 import {
   buildAnomalyCsv,
   buildInvestigationBrief,
@@ -29,7 +38,137 @@ const AGGREGATES = {
     { state: 'Kerala', projectCount: 4, averageRisk: 31.5 },
   ],
   flaggedComponentCounts: { cost: 3, delay: 2, expenditure: 4, duplicate: 1 },
+  mlEligibleCount: 10,
+  mlAnomalyCount: 2,
+  mlNotApplicableCount: 2,
+  mlOnlyCount: 1,
+  bothHighCount: 1,
 };
+
+test('project queries preserve the backend ML filter names', () => {
+  const query = buildProjectQuery({
+    mlIsAnomaly: 'true',
+    mlAnomalyLevel: 'HIGH',
+    mlRuleAgreement: 'ML_ONLY',
+  });
+  assert.equal(query.get('ml_is_anomaly'), 'true');
+  assert.equal(query.get('ml_anomaly_level'), 'HIGH');
+  assert.equal(query.get('ml_rule_agreement'), 'ML_ONLY');
+});
+
+test('Filter button opens the existing dashboard filter panel', () => {
+  const dashboardSource = readFileSync(new URL('../pages/Dashboard.jsx', import.meta.url), 'utf8');
+  assert.match(dashboardSource, /onClick=\{\(\) => setFiltersOpen\(\(open\) => !open\)\}/);
+  assert.match(dashboardSource, /aria-expanded=\{filtersOpen\}/);
+  assert.match(dashboardSource, /filtersOpen && <div className="dashboard__filters" id="dashboard-filters">/);
+});
+
+test('applying existing and ML filters updates the backend project request', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    calls.push(url);
+    return { ok: true, json: async () => ({ total: 1, projects: [{ projectId: '133312' }] }) };
+  };
+
+  try {
+    const result = await getProjects({
+      risk: 'HIGH', state: 'Karnataka', category: 'Roads',
+      mlIsAnomaly: 'true', mlAnomalyLevel: 'HIGH', mlRuleAgreement: 'ML_ONLY',
+      page: 1, pageSize: 8,
+    });
+    const requestUrl = new URL(calls[0]);
+    assert.equal(requestUrl.pathname, '/api/projects');
+    assert.equal(requestUrl.searchParams.get('risk'), 'HIGH');
+    assert.equal(requestUrl.searchParams.get('state'), 'Karnataka');
+    assert.equal(requestUrl.searchParams.get('category'), 'Roads');
+    assert.equal(requestUrl.searchParams.get('ml_is_anomaly'), 'true');
+    assert.equal(requestUrl.searchParams.get('ml_anomaly_level'), 'HIGH');
+    assert.equal(requestUrl.searchParams.get('ml_rule_agreement'), 'ML_ONLY');
+    assert.equal(requestUrl.searchParams.get('page'), '1');
+    assert.equal(requestUrl.searchParams.get('page_size'), '8');
+    assert.equal(result.total, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('eligible ML project presentation uses the backend score and anomaly flag', () => {
+  const view = buildMlPresentation({
+    mlEligible: true,
+    mlAnomalyScore: 98.125,
+    mlAnomalyLevel: 'VERY_HIGH',
+    mlIsAnomaly: true,
+    mlRuleAgreement: 'ML_ONLY',
+  });
+  assert.equal(view.eligible, true);
+  assert.equal(view.scoreText, '98.13');
+  assert.equal(view.anomalyStatus, 'Anomaly detected');
+  assert.equal(view.agreementLabel, 'AI-Detected Pattern');
+  assert.equal(view.explanation, ML_SCORE_EXPLANATION);
+});
+
+test('ML_NOT_APPLICABLE presentation has no fabricated zero score', () => {
+  const view = buildMlPresentation({
+    mlEligible: false,
+    mlStatus: 'ML_NOT_APPLICABLE',
+    mlAnomalyScore: null,
+    mlIsAnomaly: false,
+    mlRuleAgreement: 'ML_NOT_APPLICABLE',
+  });
+  assert.equal(view.heading, 'ML analysis not applicable');
+  assert.match(view.explanation, /Insufficient expenditure behavior/);
+  assert.equal(view.scoreText, null);
+  assert.equal(view.agreementLabel, 'ML Analysis Not Applicable');
+});
+
+test('agreement display labels preserve ML_ONLY and BOTH_HIGH semantics', () => {
+  assert.equal(getMlAgreementLabel('ML_ONLY'), 'AI-Detected Pattern');
+  assert.equal(getMlAgreementLabel('BOTH_HIGH'), 'Corroborated Anomaly');
+  assert.equal(getMlAgreementLabel('RULE_ONLY'), 'Explainable Risk Signal');
+  assert.equal(getMlAgreementLabel('NEITHER'), 'No Significant Anomaly Detected');
+});
+
+test('HIGH ML level does not imply anomaly detection', () => {
+  const view = buildMlPresentation({
+    mlEligible: true,
+    mlAnomalyScore: 95.58,
+    mlAnomalyLevel: 'HIGH',
+    mlIsAnomaly: false,
+    mlRuleAgreement: 'RULE_ONLY',
+  });
+  assert.equal(view.levelText, 'High');
+  assert.equal(view.anomalyStatus, 'No anomaly detected');
+  assert.equal(view.anomalyDetected, false);
+});
+
+test('eligible projects with null or missing ML scores render unavailable', () => {
+  const nullScore = buildMlPresentation({
+    mlEligible: true,
+    mlAnomalyScore: null,
+    mlIsAnomaly: false,
+    mlRuleAgreement: 'NEITHER',
+  });
+  const missingScore = buildMlPresentation({
+    mlEligible: true,
+    mlIsAnomaly: false,
+    mlRuleAgreement: 'NEITHER',
+  });
+  assert.equal(nullScore.scoreText, 'Unavailable');
+  assert.equal(missingScore.scoreText, 'Unavailable');
+  assert.equal(nullScore.anomalyStatus, 'No anomaly detected');
+});
+
+test('required risk and ML score explanations remain exact', () => {
+  assert.equal(
+    RISK_SCORE_EXPLANATION,
+    'Represents anomaly severity and review priority from explainable checks, not probability of fraud.',
+  );
+  assert.equal(
+    ML_SCORE_EXPLANATION,
+    "Measures how unusual a project's multidimensional expenditure behavior is compared with other expenditure-bearing MPLADS projects. It is not a probability of fraud.",
+  );
+});
 
 test('official evidence uses the on-demand project endpoint', async () => {
   const originalFetch = globalThis.fetch;

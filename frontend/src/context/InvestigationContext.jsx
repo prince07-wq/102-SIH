@@ -1,7 +1,14 @@
 /* oxlint-disable react/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
-export const DEFAULT_FILTERS = { risk: 'All', state: 'All', category: 'All' };
+export const DEFAULT_FILTERS = {
+  risk: 'All',
+  state: 'All',
+  category: 'All',
+  mlIsAnomaly: 'All',
+  mlAnomalyLevel: 'All',
+  mlRuleAgreement: 'All',
+};
 
 const InvestigationContext = createContext(null);
 

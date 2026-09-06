@@ -119,6 +119,30 @@
   font-weight: 600;
 }
 
+.risky-proj__ml-badge {
+  display: inline-flex;
+  max-width: 142px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: normal;
+}
+
+.risky-proj__ml-badge--both_high,
+.risky-proj__ml-badge--ml_only {
+  background: var(--risk-high-bg);
+  color: var(--risk-high);
+}
+
+.risky-proj__ml-badge--neither {
+  background: var(--risk-low-bg);
+  color: var(--risk-low);
+}
+
 .risky-proj__actions {
   color: var(--text-tertiary);
   text-align: right;

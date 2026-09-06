@@ -98,6 +98,28 @@ class ProjectRecord(BaseModel):
     workIds: List[str]
     officialWorkIds: List[int]
     hasOfficialAttachment: bool
+    mlEligible: bool
+    mlStatus: Optional[str] = None
+    mlRawScore: Optional[float] = None
+    mlAnomalyValue: Optional[float] = None
+    mlAnomalyScore: Optional[float] = None
+    mlIsAnomaly: bool
+    mlAnomalyLevel: Optional[
+        Literal["BASELINE", "ELEVATED", "HIGH", "VERY_HIGH"]
+    ] = None
+    mlRuleAgreement: Literal[
+        "BOTH_HIGH",
+        "ML_ONLY",
+        "RULE_ONLY",
+        "NEITHER",
+        "ML_NOT_APPLICABLE",
+    ]
+    mlProjectAgeDays: Optional[int] = None
+    mlDaysToFirstExpenditure: Optional[int] = None
+    mlExpenditureRecordCount: Optional[int] = None
+    mlUniqueVendorCount: Optional[int] = None
+    mlDisbursementRatio: Optional[float] = None
+    mlWorkStage: Optional[str] = None
     risk: RiskDetail
     similarProjects: List[SimilarProject]
 
@@ -209,6 +231,11 @@ class ProjectAggregatesResponse(BaseModel):
     requiresReviewCount: int
     stateAggregates: List[StateAggregate]
     flaggedComponentCounts: FlaggedComponentCounts
+    mlEligibleCount: int
+    mlAnomalyCount: int
+    mlNotApplicableCount: int
+    mlOnlyCount: int
+    bothHighCount: int
 
 
 # ---------------------------------------------------------------------------

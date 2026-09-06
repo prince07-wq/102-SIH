@@ -18,9 +18,22 @@ import {
   getProjects,
 } from '../services/api';
 import { formatNumberIN, formatCompactINR } from '../utils/format';
+import { getMlAgreementLabel, ML_ANOMALY_LEVELS, ML_RULE_AGREEMENTS } from '../utils/mlPresentation';
 import './Dashboard.css';
 
 const PAGE_SIZE = 8;
+const ML_ANOMALY_OPTIONS = [
+  { value: 'true', label: 'Anomaly detected' },
+  { value: 'false', label: 'Not detected' },
+];
+const ML_LEVEL_OPTIONS = ML_ANOMALY_LEVELS.map((value) => ({
+  value,
+  label: value.replaceAll('_', ' '),
+}));
+const ML_AGREEMENT_OPTIONS = ML_RULE_AGREEMENTS.map((value) => ({
+  value,
+  label: getMlAgreementLabel(value),
+}));
 
 export default function Dashboard() {
   const { filters, search, searchInput, setFilter, setSearchMeta, reset } = useInvestigation();
@@ -35,7 +48,8 @@ export default function Dashboard() {
   const [filterOptions, setFilterOptions] = useState(FALLBACK_FILTER_OPTIONS);
   const [pageState, setPageState] = useState({ page: 1, signature: '' });
   const [briefOpen, setBriefOpen] = useState(false);
-  const querySignature = `${filters.risk}|${filters.state}|${filters.category}|${search}`;
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const querySignature = `${JSON.stringify(filters)}|${search}`;
   const page = pageState.signature === querySignature ? pageState.page : 1;
   const scope = useMemo(() => ({ ...filters, search }), [filters, search]);
 
@@ -97,7 +111,7 @@ export default function Dashboard() {
   const anomalyData = useMemo(() => (aggregates ? buildAnomalyDistribution(aggregates) : []), [aggregates]);
   const insights = useMemo(() => (aggregates ? buildInsights(aggregates) : []), [aggregates]);
   const summary = useMemo(() => (aggregates ? buildSummary(aggregates) : null), [aggregates]);
-  const hasActiveFilters = filters.risk !== 'All' || filters.state !== 'All' || filters.category !== 'All' || searchInput !== '';
+  const hasActiveFilters = Object.values(filters).some((value) => value !== 'All') || searchInput !== '';
 
   function updateFilter(key, value) {
     setFilter(key, value);
@@ -116,10 +130,18 @@ export default function Dashboard() {
   return (
     <div className="dashboard">
       <div className="dashboard__page-header">
-        <div><h1 className="dashboard__title">Overview</h1><p className="dashboard__subtitle">Intelligence from processed MPLADS projects and explainable anomaly risk signals.</p></div>
+        <div><h1 className="dashboard__title">Overview</h1><p className="dashboard__subtitle">Intelligence from processed MPLADS projects, explainable risk signals, and behavioral anomaly analysis.</p></div>
         <div className="dashboard__page-controls">
           <button type="button" className="dashboard__control-btn"><IconCalendar />All available records</button>
-          <button type="button" className="dashboard__control-btn"><IconFilter />Filters</button>
+          <button
+            type="button"
+            className={`dashboard__control-btn ${filtersOpen ? 'is-active' : ''}`}
+            onClick={() => setFiltersOpen((open) => !open)}
+            aria-expanded={filtersOpen}
+            aria-controls="dashboard-filters"
+          >
+            <IconFilter />Filters
+          </button>
         </div>
       </div>
 
@@ -131,20 +153,35 @@ export default function Dashboard() {
         <StatCard title="Requires Review" value={formatNumberIN(summary.underReview)} icon={<IconEyeSolid />} accent="info" />
       </div>
 
+      <section className="dashboard__ai-insights" aria-labelledby="hybrid-insights-title">
+        <div className="dashboard__ai-heading">
+          <span className="dashboard__ai-eyebrow">Hybrid AI</span>
+          <h2 id="hybrid-insights-title">Behavioral anomaly coverage</h2>
+          <p>ML results apply only where expenditure behavior is available.</p>
+        </div>
+        <HybridMetric value={aggregates.mlEligibleCount} label="ML eligible" />
+        <HybridMetric value={aggregates.mlAnomalyCount} label="ML anomalies" accent />
+        <HybridMetric value={aggregates.mlOnlyCount} label="AI-detected patterns" />
+        <HybridMetric value={aggregates.bothHighCount} label="Corroborated anomalies" />
+      </section>
+
       <div className="dashboard__geo-row">
-        <div className="dashboard__geo-map"><HeatMap data={stateRiskData} /></div>
+        <div className="dashboard__geo-map"><HeatMap data={stateRiskData} onApplyState={(state) => updateFilter('state', state)} /></div>
         <div className="dashboard__geo-chart"><AnomalyChart data={anomalyData} centerLabel={formatNumberIN(aggregates.totalProjects)} centerSublabel="Matching" /></div>
       </div>
 
       <div className="dashboard__work-row">
         <div className="dashboard__work-main">
-          <div className="dashboard__filters">
+          {filtersOpen && <div className="dashboard__filters" id="dashboard-filters">
             <FilterSelect label="Risk" value={filters.risk} onChange={(value) => updateFilter('risk', value)} options={filterOptions.riskLevels} />
             <FilterSelect label="State" value={filters.state} onChange={(value) => updateFilter('state', value)} options={filterOptions.states} />
             <FilterSelect label="Category" value={filters.category} onChange={(value) => updateFilter('category', value)} options={filterOptions.categories} />
+            <FilterSelect label="ML anomaly" value={filters.mlIsAnomaly} onChange={(value) => updateFilter('mlIsAnomaly', value)} options={ML_ANOMALY_OPTIONS} />
+            <FilterSelect label="ML level" value={filters.mlAnomalyLevel} onChange={(value) => updateFilter('mlAnomalyLevel', value)} options={ML_LEVEL_OPTIONS} />
+            <FilterSelect label="Hybrid result" value={filters.mlRuleAgreement} onChange={(value) => updateFilter('mlRuleAgreement', value)} options={ML_AGREEMENT_OPTIONS} />
             {search && <span className="dashboard__search-scope">Search: “{search}” · {formatNumberIN(projectPage.total)} results</span>}
             {hasActiveFilters && <button type="button" className="dashboard__reset" onClick={resetFilters}>Reset</button>}
-          </div>
+          </div>}
           <RiskyProj
             projects={projectPage.projects}
             total={projectPage.total}
@@ -177,7 +214,11 @@ function FilterSelect({ label, value, onChange, options }) {
       <span>{label}</span>
       <select value={value} onChange={(event) => onChange(event.target.value)}>
         <option value="All">All</option>
-        {options.map((option) => <option key={option} value={option}>{option.length > 22 ? `${option.slice(0, 22)}…` : option}</option>)}
+        {options.map((option) => {
+          const optionValue = typeof option === 'string' ? option : option.value;
+          const optionLabel = typeof option === 'string' ? option : option.label;
+          return <option key={optionValue} value={optionValue}>{optionLabel.length > 28 ? `${optionLabel.slice(0, 28)}…` : optionLabel}</option>;
+        })}
       </select>
     </label>
   );
@@ -185,6 +226,15 @@ function FilterSelect({ label, value, onChange, options }) {
 
 function SummaryMetric({ value, label, className = '' }) {
   return <div className="dashboard__summary-item dashboard__summary-item--metric"><span className={`dashboard__summary-value ${className}`}>{value}</span><span className="dashboard__summary-caption">{label}</span></div>;
+}
+
+function HybridMetric({ value, label, accent = false }) {
+  return (
+    <div className={`dashboard__ai-metric ${accent ? 'dashboard__ai-metric--accent' : ''}`}>
+      <strong>{formatNumberIN(value ?? 0)}</strong>
+      <span>{label}</span>
+    </div>
+  );
 }
 
 function IconCalendar() {

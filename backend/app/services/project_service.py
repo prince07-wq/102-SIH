@@ -161,6 +161,24 @@ def _to_project_record(record):
             int(work_id) for work_id in record.get("official_work_ids", [])
         ],
         hasOfficialAttachment=record.get("has_official_attachment", False),
+        mlEligible=record.get("ml_eligible"),
+        mlStatus=record.get("ml_status"),
+        mlRawScore=record.get("ml_raw_score"),
+        mlAnomalyValue=record.get("ml_anomaly_value"),
+        mlAnomalyScore=record.get("ml_anomaly_score"),
+        mlIsAnomaly=record.get("ml_is_anomaly"),
+        mlAnomalyLevel=record.get("ml_anomaly_level"),
+        mlRuleAgreement=record.get("ml_rule_agreement"),
+        mlProjectAgeDays=record.get("ml_project_age_days"),
+        mlDaysToFirstExpenditure=record.get(
+            "ml_days_to_first_expenditure"
+        ),
+        mlExpenditureRecordCount=record.get(
+            "ml_expenditure_record_count"
+        ),
+        mlUniqueVendorCount=record.get("ml_unique_vendor_count"),
+        mlDisbursementRatio=record.get("ml_disbursement_ratio"),
+        mlWorkStage=record.get("ml_work_stage"),
         risk=risk,
         similarProjects=[
             _to_similar_project(similar)
@@ -395,13 +413,30 @@ def _ranked_search_positions(search_value):
     return tuple(position for _, position in ranked_matches)
 
 
-def _normalize_filters(risk, state, category, search):
+def _normalize_filters(
+    risk,
+    state,
+    category,
+    search,
+    ml_eligible=None,
+    ml_is_anomaly=None,
+    ml_anomaly_level=None,
+    ml_rule_agreement=None,
+):
     """Normalizes public filter values for consistent list and aggregate matching."""
     return {
         "risk": _risk_filter_value(risk),
         "state": state.strip().casefold() if state else None,
         "category": category.strip().casefold() if category else None,
         "search": _normalize_search_text(search) if search else None,
+        "ml_eligible": ml_eligible,
+        "ml_is_anomaly": ml_is_anomaly,
+        "ml_anomaly_level": (
+            ml_anomaly_level.strip().upper() if ml_anomaly_level else None
+        ),
+        "ml_rule_agreement": (
+            ml_rule_agreement.strip().upper() if ml_rule_agreement else None
+        ),
     }
 
 
@@ -413,12 +448,50 @@ def _record_matches_filters(record, filters):
         return False
     if filters["category"] and str(record.get("work_category", "")).casefold() != filters["category"]:
         return False
+    if (
+        filters["ml_eligible"] is not None
+        and record.get("ml_eligible") is not filters["ml_eligible"]
+    ):
+        return False
+    if (
+        filters["ml_is_anomaly"] is not None
+        and record.get("ml_is_anomaly") is not filters["ml_is_anomaly"]
+    ):
+        return False
+    if (
+        filters["ml_anomaly_level"]
+        and record.get("ml_anomaly_level") != filters["ml_anomaly_level"]
+    ):
+        return False
+    if (
+        filters["ml_rule_agreement"]
+        and record.get("ml_rule_agreement") != filters["ml_rule_agreement"]
+    ):
+        return False
     return True
 
 
-def _matching_records(risk=None, state=None, category=None, search=None):
+def _matching_records(
+    risk=None,
+    state=None,
+    category=None,
+    search=None,
+    ml_eligible=None,
+    ml_is_anomaly=None,
+    ml_anomaly_level=None,
+    ml_rule_agreement=None,
+):
     """Returns all matches, relevance-ranked before any pagination."""
-    filters = _normalize_filters(risk, state, category, search)
+    filters = _normalize_filters(
+        risk,
+        state,
+        category,
+        search,
+        ml_eligible,
+        ml_is_anomaly,
+        ml_anomaly_level,
+        ml_rule_agreement,
+    )
     records = _load_records()
     if not filters["search"]:
         return (
@@ -437,6 +510,10 @@ def get_all_projects(
     state: Optional[str] = None,
     category: Optional[str] = None,
     search: Optional[str] = None,
+    ml_eligible: Optional[bool] = None,
+    ml_is_anomaly: Optional[bool] = None,
+    ml_anomaly_level: Optional[str] = None,
+    ml_rule_agreement: Optional[str] = None,
     page: int = 1,
     page_size: int = 50,
 ) -> ProjectListResponse:
@@ -446,7 +523,16 @@ def get_all_projects(
     total = 0
     page_records = []
 
-    for record in _matching_records(risk, state, category, search):
+    for record in _matching_records(
+        risk,
+        state,
+        category,
+        search,
+        ml_eligible,
+        ml_is_anomaly,
+        ml_anomaly_level,
+        ml_rule_agreement,
+    ):
         if start <= total < end:
             page_records.append(_to_project_record(record))
         total += 1
@@ -465,6 +551,10 @@ def iter_project_export(
     state: Optional[str] = None,
     category: Optional[str] = None,
     search: Optional[str] = None,
+    ml_eligible: Optional[bool] = None,
+    ml_is_anomaly: Optional[bool] = None,
+    ml_anomaly_level: Optional[str] = None,
+    ml_rule_agreement: Optional[str] = None,
 ) -> Iterator[str]:
     """Streams a filtered CSV export without building API models in memory."""
     field_names = [
@@ -490,7 +580,16 @@ def iter_project_export(
     writer.writeheader()
     yield buffer.getvalue()
 
-    for record in _matching_records(risk, state, category, search):
+    for record in _matching_records(
+        risk,
+        state,
+        category,
+        search,
+        ml_eligible,
+        ml_is_anomaly,
+        ml_anomaly_level,
+        ml_rule_agreement,
+    ):
         buffer.seek(0)
         buffer.truncate(0)
         writer.writerow(
@@ -525,6 +624,10 @@ def get_project_aggregates(
     state: Optional[str] = None,
     category: Optional[str] = None,
     search: Optional[str] = None,
+    ml_eligible: Optional[bool] = None,
+    ml_is_anomaly: Optional[bool] = None,
+    ml_anomaly_level: Optional[str] = None,
+    ml_rule_agreement: Optional[str] = None,
 ) -> ProjectAggregatesResponse:
     """Aggregates the complete filtered result set before table pagination."""
     total_projects = 0
@@ -533,13 +636,38 @@ def get_project_aggregates(
     requires_review_count = 0
     risk_level_counts = Counter()
     flagged_component_counts = Counter()
+    ml_eligible_count = 0
+    ml_anomaly_count = 0
+    ml_not_applicable_count = 0
+    ml_only_count = 0
+    both_high_count = 0
     state_totals = defaultdict(lambda: {"project_count": 0, "risk_total": 0.0})
 
-    for record in _matching_records(risk, state, category, search):
+    for record in _matching_records(
+        risk,
+        state,
+        category,
+        search,
+        ml_eligible,
+        ml_is_anomaly,
+        ml_anomaly_level,
+        ml_rule_agreement,
+    ):
         total_projects += 1
         total_sanction_amount += float(record.get("sanction_amount") or 0)
         total_expenditure += float(record.get("total_disbursed") or 0)
         risk_level_counts[str(record.get("risk_level", "")).upper()] += 1
+
+        if record.get("ml_eligible") is True:
+            ml_eligible_count += 1
+        if record.get("ml_is_anomaly") is True:
+            ml_anomaly_count += 1
+        if record.get("ml_status") == "ML_NOT_APPLICABLE":
+            ml_not_applicable_count += 1
+        if record.get("ml_rule_agreement") == "ML_ONLY":
+            ml_only_count += 1
+        if record.get("ml_rule_agreement") == "BOTH_HIGH":
+            both_high_count += 1
 
         flagged_components = [
             component_name
@@ -580,6 +708,11 @@ def get_project_aggregates(
             component_name: flagged_component_counts.get(component_name, 0)
             for component_name in _RISK_COMPONENTS
         },
+        mlEligibleCount=ml_eligible_count,
+        mlAnomalyCount=ml_anomaly_count,
+        mlNotApplicableCount=ml_not_applicable_count,
+        mlOnlyCount=ml_only_count,
+        bothHighCount=both_high_count,
     )
 
 
