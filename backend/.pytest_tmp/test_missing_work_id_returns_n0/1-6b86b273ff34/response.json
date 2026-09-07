@@ -1,0 +1,16 @@
+{
+  "cache_version": 2,
+  "response": {
+    "status": "NO_ATTACHMENT",
+    "attachments": [],
+    "has_project_photo": false,
+    "photos": [],
+    "latitude": null,
+    "longitude": null,
+    "location_text": null,
+    "timestamp": null,
+    "original_file_name": null,
+    "evidence_type": "NO_ATTACHMENT",
+    "cached": false
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "cache_version": 2,
+  "response": {
+    "status": "PHOTO_GPS",
+    "attachments": [
+      {
+        "attachment_id": "1416112.1462689",
+        "original_file_name": "WC_0001.pdf",
+        "content_type": "application/pdf",
+        "evidence_type": "PHOTO_GPS",
+        "original_url": "/api/projects/133166/evidence/files/attachment_001/WC_0001.pdf",
+        "photos": [
+          {
+            "url": "/api/projects/133166/evidence/files/attachment_001/extracted/page_001_project_photo_001.jpg",
+            "attachment_id": "1416112.1462689",
+            "source_page": 1
+          }
+        ],
+        "processing_error": null
+      }
+    ],
+    "has_project_photo": true,
+    "photos": [
+      {
+        "url": "/api/projects/133166/evidence/files/attachment_001/extracted/page_001_project_photo_001.jpg",
+        "attachment_id": "1416112.1462689",
+        "source_page": 1
+      }
+    ],
+    "latitude": 18.5204,
+    "longitude": 73.8567,
+    "location_text": "Example location",
+    "timestamp": "2026-09-05T10:00:00+05:30",
+    "original_file_name": "WC_0001.pdf",
+    "evidence_type": "PHOTO_GPS",
+    "cached": false
+  }
+}
