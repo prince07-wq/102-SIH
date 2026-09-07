@@ -6,15 +6,16 @@ import Reports from './pages/Reports';
 import SavedProjects from './pages/SavedProjects';
 import { InvestigationProvider, useInvestigation } from './context/InvestigationContext';
 import './App.css';
+import LoginPage from "./pages/LoginPage"
 
 const NAV_ITEMS = [
   { key: 'overview', label: 'Overview', path: '/', icon: IconGrid, active: true },
-  { key: 'high-risk', label: 'High Risk Works', path: null, icon: IconAlert },
-  { key: 'projects', label: 'Projects', path: null, icon: IconFolder },
-  { key: 'anomalies', label: 'Anomalies', path: null, icon: IconPulse },
-  { key: 'expenditure', label: 'Expenditure', path: null, icon: IconWallet },
-  { key: 'duplicate', label: 'Duplicate Detector', path: null, icon: IconCopy },
-  { key: 'analytics', label: 'Analytics', path: null, icon: IconBars },
+  // { key: 'high-risk', label: 'High Risk Works', path: null, icon: IconAlert },
+  // { key: 'projects', label: 'Projects', path: null, icon: IconFolder },
+  // { key: 'anomalies', label: 'Anomalies', path: null, icon: IconPulse },
+  // { key: 'expenditure', label: 'Expenditure', path: null, icon: IconWallet },
+  // { key: 'duplicate', label: 'Duplicate Detector', path: null, icon: IconCopy },
+  // { key: 'analytics', label: 'Analytics', path: null, icon: IconBars },
   { key: 'reports', label: 'Reports', path: '/reports', icon: IconDoc },
   { key: 'watchlist', label: 'Saved / Review List', path: '/saved', icon: IconEye },
 ];
@@ -22,9 +23,10 @@ const NAV_ITEMS = [
 export default function App() {
   return (
     <BrowserRouter>
-      <InvestigationProvider>
+      <LoginPage/>
+      {/* <InvestigationProvider>
         <AppShell />
-      </InvestigationProvider>
+      </InvestigationProvider> */}
     </BrowserRouter>
   );
 }
@@ -99,7 +101,7 @@ function Sidebar({ open, onClose, pathname }) {
         })}
       </nav>
 
-      <div className="sidebar__system">
+      {/* <div className="sidebar__system">
         <span className="sidebar__system-label">System</span>
         <span className="sidebar__link sidebar__link--inactive">
           <IconLayers />
@@ -109,7 +111,7 @@ function Sidebar({ open, onClose, pathname }) {
           <IconSettings />
           <span>Settings</span>
         </span>
-      </div>
+      </div> */}
 
       <div className="sidebar__mission">
         <p>
