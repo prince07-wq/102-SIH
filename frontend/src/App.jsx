@@ -22,7 +22,6 @@ import {
 
 import "./App.css";
 
-
 const NAV_ITEMS = [
   {
     key: "overview",
@@ -54,34 +53,12 @@ const NAV_ITEMS = [
   },
 ];
 
-
 export default function App() {
   return (
     <BrowserRouter>
-
       <Routes>
-
-        {/* -------------------------------- */}
-        {/* PUBLIC ROUTE                     */}
-        {/* -------------------------------- */}
-
-        {/* First page of the application */}
-        <Route
-          path="/"
-          element={<Navigate to="/login" replace />}
-        />
-
-        {/* Login page */}
-        <Route
-          path="/login"
-          element={<LoginPage />}
-        />
-
-
-        {/* -------------------------------- */}
-        {/* PROTECTED APPLICATION            */}
-        {/* -------------------------------- */}
-
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/login" element={<LoginPage />} />
         <Route
           path="/*"
           element={
@@ -90,30 +67,23 @@ export default function App() {
             </InvestigationProvider>
           }
         />
-
       </Routes>
-
     </BrowserRouter>
   );
 }
 
-
 function AppShell() {
-
   const location = useLocation();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-
   return (
     <div className="app-shell">
-
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         pathname={location.pathname}
       />
-
 
       {sidebarOpen && (
         <div
@@ -123,64 +93,30 @@ function AppShell() {
         />
       )}
 
-
       <div className="app-shell__main">
-
-        <Header
-          onToggleSidebar={() =>
-            setSidebarOpen((value) => !value)
-          }
-        />
-
+        <Header onToggleSidebar={() => setSidebarOpen((value) => !value)} />
 
         <div className="app-shell__content">
-
           <Routes>
-
             {/* Dashboard */}
-            <Route
-              path="/dashboard"
-              element={<Dashboard />}
-            />
+            <Route path="/dashboard" element={<Dashboard />} />
 
             {/* Keep "/" inside AppShell pointing to dashboard */}
-            <Route
-              path="/"
-              element={<Navigate to="/dashboard" replace />}
-            />
-
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
             {/* Project details */}
-            <Route
-              path="/projects/:id"
-              element={<ProjectDetails />}
-            />
+            <Route path="/projects/:id" element={<ProjectDetails />} />
 
-            <Route
-              path="/project/:id"
-              element={<ProjectDetails />}
-            />
-
+            <Route path="/project/:id" element={<ProjectDetails />} />
 
             {/* Reports */}
-            <Route
-              path="/reports"
-              element={<Reports />}
-            />
-
+            <Route path="/reports" element={<Reports />} />
 
             {/* Saved projects */}
-            <Route
-              path="/saved"
-              element={<SavedProjects />}
-            />
-
+            <Route path="/saved" element={<SavedProjects />} />
           </Routes>
-
         </div>
-
       </div>
-
     </div>
   );
 }
@@ -271,6 +207,11 @@ function Header({ onToggleSidebar }) {
     isDebouncing,
     setSearchMeta,
   } = useInvestigation();
+
+  function handleLogout() {
+    localStorage.removeItem("token");
+    navigate("/login", { replace: true });
+  }
 
   useEffect(() => {
     function dismissSearchResults(event) {
@@ -384,6 +325,14 @@ function Header({ onToggleSidebar }) {
             <span className="app-header__user-role">Investigator</span>
           </div>
           <div className="app-header__avatar">IC</div>
+
+          <button
+            type="button"
+            className="app-header__logout"
+            onClick={handleLogout}
+          >
+            Logout
+          </button>
         </div>
       </div>
     </header>

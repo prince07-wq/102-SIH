@@ -404,6 +404,26 @@
   margin-top: 2px;
 }
 
+
+.app-header__logout {
+  border: 1px solid #d8dce3;
+  background: transparent;
+  color: #4b5563;
+  padding: 7px 12px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.app-header__logout:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+
+
 /* ---------------------------------------------------------------- */
 /* Responsive behavior                                               */
 /* ---------------------------------------------------------------- */
