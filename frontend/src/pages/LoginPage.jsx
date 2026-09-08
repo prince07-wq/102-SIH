@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import "./LoginPage.css";
+import { useNavigate } from "react-router-dom";
+import api from "../services/api";
 
 /* ---------- Small inline icons ---------- */
 
@@ -72,7 +74,6 @@ function Icon({ name, size = 17 }) {
   return <svg {...common}>{paths[name]}</svg>;
 }
 
-
 /* ---------- Brand ---------- */
 
 function Brand() {
@@ -89,7 +90,6 @@ function Brand() {
     </div>
   );
 }
-
 
 /* ---------- Hero illustration ----------
    Everything below is CSS/SVG/HTML. No external image is required.
@@ -236,7 +236,6 @@ function HeroArtwork() {
   );
 }
 
-
 /* ---------- Login page ---------- */
 
 export default function LoginPage({ onLogin, onSignUp }) {
@@ -245,17 +244,45 @@ export default function LoginPage({ onLogin, onSignUp }) {
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
+  const navigate = useNavigate();
 
-  const submit = (event) => {
-    event.preventDefault();
+  const submit = async (event) => {
+  event.preventDefault();
 
+  try {
     if (mode === "signup") {
-      onSignUp?.({ loginId, password });
-    } else {
-      onLogin?.({ loginId, password, remember });
-    }
-  };
+      await api.post("/auth/register", {
+        loginId,
+        password,
+      });
 
+      alert("Account created successfully. Please login.");
+      setMode("signin");
+      return;
+    }
+
+    const response = await api.post("/auth/login", {
+      loginId,
+      password,
+    });
+
+    console.log("Login response:", response.data);
+
+    // Save JWT
+    localStorage.setItem("token", response.token);
+
+    // Redirect to dashboard
+    navigate("/dashboard");
+
+  } catch (error) {
+    console.error("Authentication error:", error);
+
+    alert(
+      error.response?.data?.detail ||
+      "Login failed. Please check your credentials."
+    );
+  }
+};
   return (
     <main className="mplads-login-page">
       <div className="login-shell">
@@ -353,10 +380,7 @@ export default function LoginPage({ onLogin, onSignUp }) {
                   onClick={() => setShowPassword((v) => !v)}
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
-                  <Icon
-                    name={showPassword ? "eyeOff" : "eye"}
-                    size={15}
-                  />
+                  <Icon name={showPassword ? "eyeOff" : "eye"} size={15} />
                 </button>
               </div>
 
@@ -377,7 +401,7 @@ export default function LoginPage({ onLogin, onSignUp }) {
                     className="forgot"
                     onClick={() =>
                       alert(
-                        "Please contact your administrator to reset your password."
+                        "Please contact your administrator to reset your password.",
                       )
                     }
                   >
