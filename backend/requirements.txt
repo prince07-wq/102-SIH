@@ -9,6 +9,8 @@ python-dotenv
 bcrypt
 PyJWT
 
+psycopg[binary]
+python-dotenv
 -r ../scripts/pdf_evidence_requirements.txt
 
 
