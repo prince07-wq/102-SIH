@@ -26,7 +26,10 @@ export const API_BASE_URL = (configuredBaseUrl || 'http://localhost:8000').repla
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: { Accept: 'application/json' },
+    headers: {
+      Accept: "application/json",
+      ...options.headers,
+    },
     ...options,
   });
 
@@ -208,3 +211,21 @@ export const FALLBACK_FILTER_OPTIONS = {
   states: [],
   riskLevels: ['CRITICAL', 'HIGH', 'MODERATE', 'LOW'],
 };
+
+const api = {
+  post(path, data) {
+    return request(path, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+  },
+
+  get(path) {
+    return request(path);
+  },
+};
+
+export default api;

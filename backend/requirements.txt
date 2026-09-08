@@ -4,4 +4,11 @@ pydantic
 httpx
 pytest
 pytest-asyncio
+pymongo
+python-dotenv
+bcrypt
+PyJWT
+
 -r ../scripts/pdf_evidence_requirements.txt
+
+

@@ -20,7 +20,8 @@ What this file does NOT do
 from fastapi import FastAPI  # type: ignore
 from fastapi.middleware.cors import CORSMiddleware  # type: ignore
 
-from app.routes import projects, statistics
+from app.routes import projects, statistics, auth
+
 
 # ---------------------------------------------------------------------------
 # Application instance
@@ -67,3 +68,14 @@ def root():
         "status": "ok",
         "message": "MPLADS Risk Intelligence API is running. Visit /docs for the interactive API reference.",
     }
+
+
+app.include_router(auth.router)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
