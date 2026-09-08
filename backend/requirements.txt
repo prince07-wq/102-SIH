@@ -4,4 +4,6 @@ pydantic
 httpx
 pytest
 pytest-asyncio
+psycopg[binary]
+python-dotenv
 -r ../scripts/pdf_evidence_requirements.txt

@@ -10,13 +10,12 @@ not calculate or modify anomaly scores.
 
 import csv
 import io
-import json
-import os
 import re
 import unicodedata
-from collections import Counter, defaultdict
 from functools import lru_cache
 from typing import Iterator, List, Optional
+
+from app.db import get_connection
 
 from app.schemas.project import (
     AlertRecord,
@@ -28,64 +27,11 @@ from app.schemas.project import (
     StatisticsResponse,
 )
 from app.services.search_config import (
-    EXACT_PROJECT_ID_SCORE,
     MIN_PARTIAL_TOKEN_LENGTH,
     SEARCH_ALIAS_GROUPS,
-    SEARCH_FIELD_WEIGHTS,
-)
-
-_SERVICE_DIR = os.path.dirname(__file__)
-_DATA_PATH = os.path.abspath(
-    os.path.join(
-        _SERVICE_DIR,
-        "..",
-        "..",
-        "..",
-        "data",
-        "processed",
-        "api_projects.json",
-    )
 )
 
 _RISK_COMPONENTS = ["cost", "delay", "expenditure", "duplicate"]
-
-
-@lru_cache(maxsize=1)
-def _load_records():
-    """Loads and caches the API-ready dataset once per server process."""
-    if not os.path.exists(_DATA_PATH):
-        raise FileNotFoundError(f"Required processed dataset not found: {_DATA_PATH}")
-
-    with open(_DATA_PATH, "r", encoding="utf-8") as fh:
-        records = json.load(fh)
-
-    if not isinstance(records, list):
-        raise ValueError(
-            f"Expected a JSON list in {_DATA_PATH}, got {type(records).__name__}"
-        )
-
-    return records
-
-
-@lru_cache(maxsize=1)
-def _get_project_index():
-    """Builds a cached string project-ID lookup for detail requests."""
-    index = {}
-
-    for position, record in enumerate(_load_records(), start=1):
-        if not isinstance(record, dict):
-            raise ValueError(f"Project record {position} must be a JSON object")
-
-        project_id = record.get("project_id")
-        if project_id is None or str(project_id).strip() == "":
-            raise ValueError(f"Project record {position} has no project_id")
-
-        project_id_text = str(project_id)
-        if project_id_text in index:
-            raise ValueError(f"Duplicate project_id in API dataset: {project_id_text}")
-        index[project_id_text] = record
-
-    return index
 
 
 def _to_vendor_record(vendor):
@@ -210,54 +156,6 @@ def _normalize_search_text(value):
     return " ".join(re.sub(r"[^\w]+", " ", normalized).split())
 
 
-def _searchable_fields(record):
-    """Returns normalized investigation fields and their tokens."""
-    vendor_names = " ".join(
-        str(vendor.get("vendor_name", ""))
-        for vendor in record.get("vendors", [])
-        if isinstance(vendor, dict)
-    )
-    work_ids = " ".join(str(work_id) for work_id in record.get("work_ids", []))
-    values = {
-        "project_id": record.get("project_id"),
-        "activity_name": record.get("activity_name"),
-        "work_description": record.get("work_description"),
-        "state_name": record.get("state_name"),
-        "constituency": record.get("constituency"),
-        "mp_name": record.get("mp_name"),
-        "ida_name": record.get("ida_name"),
-        "work_ids": work_ids,
-        "vendor_names": vendor_names,
-    }
-    document = {}
-    all_tokens = []
-    for field_name, value in values.items():
-        text = _normalize_search_text(value)
-        tokens = tuple(text.split())
-        document[field_name] = {"text": text, "tokens": tokens}
-        all_tokens.extend(tokens)
-    document["_all_tokens"] = tuple(all_tokens)
-    return document
-
-
-@lru_cache(maxsize=1)
-def _get_search_documents():
-    """Builds normalized search documents once, aligned with dataset order."""
-    return tuple(_searchable_fields(record) for record in _load_records())
-
-
-@lru_cache(maxsize=1)
-def _get_search_token_index():
-    """Maps normalized field tokens to dataset positions for fast candidates."""
-    token_positions = defaultdict(set)
-    for position, document in enumerate(_get_search_documents()):
-        for token in set(document["_all_tokens"]):
-            token_positions[token].add(position)
-    return {
-        token: frozenset(positions) for token, positions in token_positions.items()
-    }
-
-
 def _token_matches(query_token, document_token):
     """Matches exact tokens and document words that extend a typed prefix."""
     if query_token == document_token:
@@ -318,192 +216,24 @@ def _query_groups(search_value):
     return tuple(groups)
 
 
-def _group_matches(tokens, group):
-    """Checks whether any alternate wording for a query concept matches."""
-    return any(_variant_matches(tokens, variant) for variant in group)
+def _db_record(row):
+    """Converts a PostgreSQL row back to the pipeline-record shape."""
+    record = dict(row)
 
+    details = record.pop("details", None) or {}
+    record.update(details)
 
-@lru_cache(maxsize=256)
-def _positions_for_token(query_token):
-    """Returns all records containing an exact or partial token match."""
-    positions = set()
-    for document_token, token_positions in _get_search_token_index().items():
-        if _token_matches(query_token, document_token):
-            positions.update(token_positions)
-    return frozenset(positions)
-
-
-def _candidate_positions(groups):
-    """Uses the token index to AND query concepts and OR alias variants."""
-    candidates = None
-    for group in groups:
-        group_positions = set()
-        for variant in group:
-            variant_positions = None
-            for token in variant:
-                token_positions = _positions_for_token(token)
-                variant_positions = (
-                    set(token_positions)
-                    if variant_positions is None
-                    else variant_positions.intersection(token_positions)
-                )
-                if not variant_positions:
-                    break
-            if variant_positions:
-                group_positions.update(variant_positions)
-        candidates = (
-            group_positions
-            if candidates is None
-            else candidates.intersection(group_positions)
-        )
-        if not candidates:
-            return ()
-    return tuple(candidates or ())
-
-
-def _search_score(document, search_value, groups):
-    """Returns a relevance score, or None when the project does not match."""
-    project_id = document["project_id"]["text"]
-    if search_value == project_id:
-        return EXACT_PROJECT_ID_SCORE
-
-    all_tokens = document["_all_tokens"]
-    if not groups or not all(_group_matches(all_tokens, group) for group in groups):
-        return None
-
-    score = 0
-    for field_name, weight in SEARCH_FIELD_WEIGHTS.items():
-        field = document[field_name]
-        matching_groups = sum(
-            _group_matches(field["tokens"], group) for group in groups
-        )
-        score += matching_groups * weight
-        if matching_groups == len(groups):
-            score += weight * 2
-        if search_value == field["text"]:
-            score += weight * 4
-        elif search_value and search_value in field["text"]:
-            score += weight * 2
-
-    if project_id and search_value in project_id:
-        score += SEARCH_FIELD_WEIGHTS["project_id"] * 2
-    return score
-
-
-@lru_cache(maxsize=16)
-def _ranked_search_positions(search_value):
-    """Caches relevance-ranked dataset positions for recent search phrases."""
-    documents = _get_search_documents()
-    exact_id_positions = tuple(
-        position
-        for position, document in enumerate(documents)
-        if document["project_id"]["text"] == search_value
-    )
-    if exact_id_positions:
-        return exact_id_positions
-
-    groups = _query_groups(search_value)
-    ranked_matches = []
-    for position in _candidate_positions(groups):
-        document = documents[position]
-        score = _search_score(document, search_value, groups)
-        if score is not None:
-            ranked_matches.append((score, position))
-    ranked_matches.sort(key=lambda item: (-item[0], item[1]))
-    return tuple(position for _, position in ranked_matches)
-
-
-def _normalize_filters(
-    risk,
-    state,
-    category,
-    search,
-    ml_eligible=None,
-    ml_is_anomaly=None,
-    ml_anomaly_level=None,
-    ml_rule_agreement=None,
-):
-    """Normalizes public filter values for consistent list and aggregate matching."""
-    return {
-        "risk": _risk_filter_value(risk),
-        "state": state.strip().casefold() if state else None,
-        "category": category.strip().casefold() if category else None,
-        "search": _normalize_search_text(search) if search else None,
-        "ml_eligible": ml_eligible,
-        "ml_is_anomaly": ml_is_anomaly,
-        "ml_anomaly_level": (
-            ml_anomaly_level.strip().upper() if ml_anomaly_level else None
-        ),
-        "ml_rule_agreement": (
-            ml_rule_agreement.strip().upper() if ml_rule_agreement else None
-        ),
-    }
-
-
-def _record_matches_filters(record, filters):
-    """Applies non-search filters to one project record."""
-    if filters["risk"] and str(record.get("risk_level", "")).upper() != filters["risk"]:
-        return False
-    if filters["state"] and filters["state"] not in str(record.get("state_name", "")).casefold():
-        return False
-    if filters["category"] and str(record.get("work_category", "")).casefold() != filters["category"]:
-        return False
-    if (
-        filters["ml_eligible"] is not None
-        and record.get("ml_eligible") is not filters["ml_eligible"]
+    for field_name in (
+        "recommendation_date",
+        "sanction_date",
+        "first_expenditure_date",
+        "last_expenditure_date",
     ):
-        return False
-    if (
-        filters["ml_is_anomaly"] is not None
-        and record.get("ml_is_anomaly") is not filters["ml_is_anomaly"]
-    ):
-        return False
-    if (
-        filters["ml_anomaly_level"]
-        and record.get("ml_anomaly_level") != filters["ml_anomaly_level"]
-    ):
-        return False
-    if (
-        filters["ml_rule_agreement"]
-        and record.get("ml_rule_agreement") != filters["ml_rule_agreement"]
-    ):
-        return False
-    return True
+        value = record.get(field_name)
+        if value is not None and hasattr(value, "isoformat"):
+            record[field_name] = value.isoformat()
 
-
-def _matching_records(
-    risk=None,
-    state=None,
-    category=None,
-    search=None,
-    ml_eligible=None,
-    ml_is_anomaly=None,
-    ml_anomaly_level=None,
-    ml_rule_agreement=None,
-):
-    """Returns all matches, relevance-ranked before any pagination."""
-    filters = _normalize_filters(
-        risk,
-        state,
-        category,
-        search,
-        ml_eligible,
-        ml_is_anomaly,
-        ml_anomaly_level,
-        ml_rule_agreement,
-    )
-    records = _load_records()
-    if not filters["search"]:
-        return (
-            record for record in records if _record_matches_filters(record, filters)
-        )
-
-    return (
-        records[position]
-        for position in _ranked_search_positions(filters["search"])
-        if _record_matches_filters(records[position], filters)
-    )
-
+    return record
 
 def get_all_projects(
     risk: Optional[str] = None,
@@ -517,32 +247,169 @@ def get_all_projects(
     page: int = 1,
     page_size: int = 50,
 ) -> ProjectListResponse:
-    """Returns one filtered page without materializing every API model."""
-    start = (page - 1) * page_size
-    end = start + page_size
-    total = 0
-    page_records = []
 
-    for record in _matching_records(
-        risk,
-        state,
-        category,
-        search,
-        ml_eligible,
-        ml_is_anomaly,
-        ml_anomaly_level,
-        ml_rule_agreement,
-    ):
-        if start <= total < end:
-            page_records.append(_to_project_record(record))
-        total += 1
+    conditions = []
+    params = []
+
+    if risk:
+        conditions.append("risk_level = %s")
+        params.append(_risk_filter_value(risk))
+
+    if state:
+        conditions.append("state_name ILIKE %s")
+        params.append(f"%{state.strip()}%")
+
+    if category:
+        conditions.append("LOWER(work_category) = LOWER(%s)")
+        params.append(category.strip())
+
+    if ml_eligible is not None:
+        conditions.append("ml_eligible = %s")
+        params.append(ml_eligible)
+
+    if ml_is_anomaly is not None:
+        conditions.append("ml_is_anomaly = %s")
+        params.append(ml_is_anomaly)
+
+    if ml_anomaly_level:
+        conditions.append("ml_anomaly_level = %s")
+        params.append(ml_anomaly_level.strip().upper())
+
+    if ml_rule_agreement:
+        conditions.append("ml_rule_agreement = %s")
+        params.append(ml_rule_agreement.strip().upper())
+
+    # Must NOT be inside the ml_rule_agreement block.
+    search_order = ""
+    order_params = []
+
+    if search and search.strip():
+        search_value = _normalize_search_text(search)
+
+        searchable_columns = (
+            "work_description",
+            "activity_name",
+            "state_name",
+            "constituency",
+            "mp_name",
+            "ida_name",
+            "vendor_names",
+            "work_ids_text",
+        )
+
+        groups = _query_groups(search_value)
+
+        search_sql_parts = []
+        search_params = []
+
+        for group in groups:
+            variant_sql_parts = []
+
+            # Alternatives/synonyms inside a group are OR.
+            for variant in group:
+                token_sql_parts = []
+
+                # Tokens inside one variant are AND,
+                # but each token may match any searchable column.
+                for token in variant:
+                    field_checks = []
+
+                    for column in searchable_columns:
+                        field_checks.append(f"{column} ILIKE %s")
+                        search_params.append(f"%{token}%")
+
+                    token_sql_parts.append(
+                        "(" + " OR ".join(field_checks) + ")"
+                    )
+
+                if token_sql_parts:
+                    variant_sql_parts.append(
+                        "(" + " AND ".join(token_sql_parts) + ")"
+                    )
+
+            if variant_sql_parts:
+                search_sql_parts.append(
+                    "(" + " OR ".join(variant_sql_parts) + ")"
+                )
+
+        if search_sql_parts:
+            search_expression = " AND ".join(search_sql_parts)
+
+            if search_value.isdigit():
+                conditions.append(
+                    f"(project_id = %s OR ({search_expression}))"
+                )
+
+                params.append(int(search_value))
+                params.extend(search_params)
+
+                search_order = (
+                    "CASE WHEN project_id = %s THEN 0 ELSE 1 END,"
+                )
+                order_params.append(int(search_value))
+
+            else:
+                conditions.append(f"({search_expression})")
+                params.extend(search_params)
+
+        elif search_value.isdigit():
+            # Defensive fallback for exact project-ID search.
+            conditions.append("project_id = %s")
+            params.append(int(search_value))
+
+            search_order = (
+                "CASE WHEN project_id = %s THEN 0 ELSE 1 END,"
+            )
+            order_params.append(int(search_value))
+
+    where_sql = (
+        "WHERE " + " AND ".join(conditions)
+        if conditions
+        else ""
+    )
+
+    offset = (page - 1) * page_size
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+
+            cur.execute(
+                f"""
+                SELECT COUNT(*) AS total
+                FROM projects
+                {where_sql}
+                """,
+                params,
+            )
+
+            total = cur.fetchone()["total"]
+
+            cur.execute(
+                f"""
+                SELECT *
+                FROM projects
+                {where_sql}
+                ORDER BY
+                    {search_order}
+                    project_id
+                LIMIT %s OFFSET %s
+                """,
+                params + order_params + [page_size, offset],
+            )
+
+            rows = cur.fetchall()
+
+    projects = [
+        _to_project_record(_db_record(row))
+        for row in rows
+    ]
 
     return ProjectListResponse(
         total=total,
         page=page,
         pageSize=page_size,
         totalPages=_page_count(total, page_size),
-        projects=page_records,
+        projects=projects,
     )
 
 
@@ -556,7 +423,8 @@ def iter_project_export(
     ml_anomaly_level: Optional[str] = None,
     ml_rule_agreement: Optional[str] = None,
 ) -> Iterator[str]:
-    """Streams a filtered CSV export without building API models in memory."""
+    """Streams a filtered CSV export directly from PostgreSQL."""
+
     field_names = [
         "project_id",
         "work_name",
@@ -575,47 +443,200 @@ def iter_project_export(
         "expenditure_flagged",
         "duplicate_flagged",
     ]
+
     buffer = io.StringIO()
-    writer = csv.DictWriter(buffer, fieldnames=field_names, lineterminator="\n")
+    writer = csv.DictWriter(
+        buffer,
+        fieldnames=field_names,
+        lineterminator="\n",
+    )
+
     writer.writeheader()
     yield buffer.getvalue()
 
-    for record in _matching_records(
-        risk,
-        state,
-        category,
-        search,
-        ml_eligible,
-        ml_is_anomaly,
-        ml_anomaly_level,
-        ml_rule_agreement,
-    ):
-        buffer.seek(0)
-        buffer.truncate(0)
-        writer.writerow(
-            {
-                "project_id": record.get("project_id"),
-                "work_name": record.get("work_description")
-                or record.get("activity_name"),
-                "state": record.get("state_name"),
-                "constituency": record.get("constituency"),
-                "mp_name": record.get("mp_name"),
-                "authority": record.get("ida_name"),
-                "category": record.get("work_category"),
-                "sanction_amount": record.get("sanction_amount"),
-                "total_expenditure": record.get("total_disbursed"),
-                "risk_level": record.get("risk_level"),
-                "overall_score": record.get("overall_score"),
-                "flag_count": record.get("flag_count"),
-                **{
-                    f"{component_name}_flagged": record.get(
-                        component_name, {}
-                    ).get("flagged", False)
-                    for component_name in _RISK_COMPONENTS
-                },
-            }
+    conditions = []
+    params = []
+
+    if risk:
+        conditions.append("risk_level = %s")
+        params.append(_risk_filter_value(risk))
+
+    if state:
+        conditions.append("state_name ILIKE %s")
+        params.append(f"%{state.strip()}%")
+
+    if category:
+        conditions.append("LOWER(work_category) = LOWER(%s)")
+        params.append(category.strip())
+
+    if ml_eligible is not None:
+        conditions.append("ml_eligible = %s")
+        params.append(ml_eligible)
+
+    if ml_is_anomaly is not None:
+        conditions.append("ml_is_anomaly = %s")
+        params.append(ml_is_anomaly)
+
+    if ml_anomaly_level:
+        conditions.append("ml_anomaly_level = %s")
+        params.append(ml_anomaly_level.strip().upper())
+
+    if ml_rule_agreement:
+        conditions.append("ml_rule_agreement = %s")
+        params.append(ml_rule_agreement.strip().upper())
+
+    # Keep export search semantics identical to project list/aggregates.
+    if search and search.strip():
+        search_value = _normalize_search_text(search)
+
+        searchable_columns = (
+            "work_description",
+            "activity_name",
+            "state_name",
+            "constituency",
+            "mp_name",
+            "ida_name",
+            "vendor_names",
+            "work_ids_text",
         )
-        yield buffer.getvalue()
+
+        groups = _query_groups(search_value)
+
+        search_sql_parts = []
+        search_params = []
+
+        for group in groups:
+            variant_sql_parts = []
+
+            for variant in group:
+                token_sql_parts = []
+
+                for token in variant:
+                    field_checks = []
+
+                    for column in searchable_columns:
+                        field_checks.append(f"{column} ILIKE %s")
+                        search_params.append(f"%{token}%")
+
+                    token_sql_parts.append(
+                        "(" + " OR ".join(field_checks) + ")"
+                    )
+
+                if token_sql_parts:
+                    variant_sql_parts.append(
+                        "(" + " AND ".join(token_sql_parts) + ")"
+                    )
+
+            if variant_sql_parts:
+                search_sql_parts.append(
+                    "(" + " OR ".join(variant_sql_parts) + ")"
+                )
+
+        if search_sql_parts:
+            search_expression = " AND ".join(search_sql_parts)
+
+            if search_value.isdigit():
+                conditions.append(
+                    f"(project_id = %s OR ({search_expression}))"
+                )
+                params.append(int(search_value))
+                params.extend(search_params)
+            else:
+                conditions.append(f"({search_expression})")
+                params.extend(search_params)
+
+        elif search_value.isdigit():
+            conditions.append("project_id = %s")
+            params.append(int(search_value))
+
+    where_sql = (
+        "WHERE " + " AND ".join(conditions)
+        if conditions
+        else ""
+    )
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT
+                    project_id,
+                    work_description,
+                    activity_name,
+                    state_name,
+                    constituency,
+                    mp_name,
+                    ida_name,
+                    work_category,
+                    sanction_amount,
+                    total_disbursed,
+                    risk_level,
+                    overall_score,
+                    flag_count,
+
+                    COALESCE(
+                        (details->'cost'->>'flagged')::boolean,
+                        FALSE
+                    ) AS cost_flagged,
+
+                    COALESCE(
+                        (details->'delay'->>'flagged')::boolean,
+                        FALSE
+                    ) AS delay_flagged,
+
+                    COALESCE(
+                        (details->'expenditure'->>'flagged')::boolean,
+                        FALSE
+                    ) AS expenditure_flagged,
+
+                    COALESCE(
+                        (details->'duplicate'->>'flagged')::boolean,
+                        FALSE
+                    ) AS duplicate_flagged
+
+                FROM projects
+                {where_sql}
+                ORDER BY project_id
+                """,
+                params,
+            )
+
+            # fetchmany avoids loading the entire export into Python memory.
+            while True:
+                rows = cur.fetchmany(1000)
+
+                if not rows:
+                    break
+
+                for row in rows:
+                    buffer.seek(0)
+                    buffer.truncate(0)
+
+                    writer.writerow(
+                        {
+                            "project_id": row["project_id"],
+                            "work_name": (
+                                row["work_description"]
+                                or row["activity_name"]
+                            ),
+                            "state": row["state_name"],
+                            "constituency": row["constituency"],
+                            "mp_name": row["mp_name"],
+                            "authority": row["ida_name"],
+                            "category": row["work_category"],
+                            "sanction_amount": row["sanction_amount"],
+                            "total_expenditure": row["total_disbursed"],
+                            "risk_level": row["risk_level"],
+                            "overall_score": row["overall_score"],
+                            "flag_count": row["flag_count"],
+                            "cost_flagged": row["cost_flagged"],
+                            "delay_flagged": row["delay_flagged"],
+                            "expenditure_flagged": row["expenditure_flagged"],
+                            "duplicate_flagged": row["duplicate_flagged"],
+                        }
+                    )
+
+                    yield buffer.getvalue()
 
 
 @lru_cache(maxsize=128)
@@ -629,107 +650,306 @@ def get_project_aggregates(
     ml_anomaly_level: Optional[str] = None,
     ml_rule_agreement: Optional[str] = None,
 ) -> ProjectAggregatesResponse:
-    """Aggregates the complete filtered result set before table pagination."""
-    total_projects = 0
-    total_sanction_amount = 0.0
-    total_expenditure = 0.0
-    requires_review_count = 0
-    risk_level_counts = Counter()
-    flagged_component_counts = Counter()
-    ml_eligible_count = 0
-    ml_anomaly_count = 0
-    ml_not_applicable_count = 0
-    ml_only_count = 0
-    both_high_count = 0
-    state_totals = defaultdict(lambda: {"project_count": 0, "risk_total": 0.0})
+    """Aggregates the complete filtered PostgreSQL result set."""
 
-    for record in _matching_records(
-        risk,
-        state,
-        category,
-        search,
-        ml_eligible,
-        ml_is_anomaly,
-        ml_anomaly_level,
-        ml_rule_agreement,
-    ):
-        total_projects += 1
-        total_sanction_amount += float(record.get("sanction_amount") or 0)
-        total_expenditure += float(record.get("total_disbursed") or 0)
-        risk_level_counts[str(record.get("risk_level", "")).upper()] += 1
+    conditions = []
+    params = []
 
-        if record.get("ml_eligible") is True:
-            ml_eligible_count += 1
-        if record.get("ml_is_anomaly") is True:
-            ml_anomaly_count += 1
-        if record.get("ml_status") == "ML_NOT_APPLICABLE":
-            ml_not_applicable_count += 1
-        if record.get("ml_rule_agreement") == "ML_ONLY":
-            ml_only_count += 1
-        if record.get("ml_rule_agreement") == "BOTH_HIGH":
-            both_high_count += 1
+    if risk:
+        conditions.append("risk_level = %s")
+        params.append(_risk_filter_value(risk))
 
-        flagged_components = [
-            component_name
-            for component_name in _RISK_COMPONENTS
-            if record.get(component_name, {}).get("flagged") is True
-        ]
-        if flagged_components:
-            requires_review_count += 1
-        for component_name in flagged_components:
-            flagged_component_counts[component_name] += 1
+    if state:
+        conditions.append("state_name ILIKE %s")
+        params.append(f"%{state.strip()}%")
 
-        state_name = str(record.get("state_name") or "Unknown")
-        state_totals[state_name]["project_count"] += 1
-        state_totals[state_name]["risk_total"] += float(record.get("overall_score") or 0)
+    if category:
+        conditions.append("LOWER(work_category) = LOWER(%s)")
+        params.append(category.strip())
+
+    if ml_eligible is not None:
+        conditions.append("ml_eligible = %s")
+        params.append(ml_eligible)
+
+    if ml_is_anomaly is not None:
+        conditions.append("ml_is_anomaly = %s")
+        params.append(ml_is_anomaly)
+
+    if ml_anomaly_level:
+        conditions.append("ml_anomaly_level = %s")
+        params.append(ml_anomaly_level.strip().upper())
+
+    if ml_rule_agreement:
+        conditions.append("ml_rule_agreement = %s")
+        params.append(ml_rule_agreement.strip().upper())
+
+    # Preserve the exact same search behavior as get_all_projects().
+    if search and search.strip():
+        search_value = _normalize_search_text(search)
+
+        searchable_columns = (
+            "work_description",
+            "activity_name",
+            "state_name",
+            "constituency",
+            "mp_name",
+            "ida_name",
+            "vendor_names",
+            "work_ids_text",
+        )
+
+        groups = _query_groups(search_value)
+
+        search_sql_parts = []
+        search_params = []
+
+        for group in groups:
+            variant_sql_parts = []
+
+            for variant in group:
+                token_sql_parts = []
+
+                for token in variant:
+                    field_checks = []
+
+                    for column in searchable_columns:
+                        field_checks.append(f"{column} ILIKE %s")
+                        search_params.append(f"%{token}%")
+
+                    token_sql_parts.append(
+                        "(" + " OR ".join(field_checks) + ")"
+                    )
+
+                if token_sql_parts:
+                    variant_sql_parts.append(
+                        "(" + " AND ".join(token_sql_parts) + ")"
+                    )
+
+            if variant_sql_parts:
+                search_sql_parts.append(
+                    "(" + " OR ".join(variant_sql_parts) + ")"
+                )
+
+        if search_sql_parts:
+            search_expression = " AND ".join(search_sql_parts)
+
+            if search_value.isdigit():
+                conditions.append(
+                    f"(project_id = %s OR ({search_expression}))"
+                )
+                params.append(int(search_value))
+                params.extend(search_params)
+
+            else:
+                conditions.append(f"({search_expression})")
+                params.extend(search_params)
+
+        elif search_value.isdigit():
+            conditions.append("project_id = %s")
+            params.append(int(search_value))
+
+    where_sql = (
+        "WHERE " + " AND ".join(conditions)
+        if conditions
+        else ""
+    )
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+
+            # Overall aggregate statistics.
+            cur.execute(
+                f"""
+                SELECT
+                    COUNT(*) AS total_projects,
+
+                    COALESCE(SUM(sanction_amount), 0) AS total_sanction_amount,
+                    COALESCE(SUM(total_disbursed), 0) AS total_expenditure,
+
+                    COUNT(*) FILTER (
+                        WHERE risk_level = 'LOW'
+                    ) AS low_count,
+
+                    COUNT(*) FILTER (
+                        WHERE risk_level = 'MODERATE'
+                    ) AS moderate_count,
+
+                    COUNT(*) FILTER (
+                        WHERE risk_level = 'HIGH'
+                    ) AS high_count,
+
+                    COUNT(*) FILTER (
+                        WHERE risk_level = 'CRITICAL'
+                    ) AS critical_count,
+
+                    COUNT(*) FILTER (
+                        WHERE
+                            COALESCE(
+                                (details->'cost'->>'flagged')::boolean,
+                                FALSE
+                            )
+                            OR COALESCE(
+                                (details->'delay'->>'flagged')::boolean,
+                                FALSE
+                            )
+                            OR COALESCE(
+                                (details->'expenditure'->>'flagged')::boolean,
+                                FALSE
+                            )
+                            OR COALESCE(
+                                (details->'duplicate'->>'flagged')::boolean,
+                                FALSE
+                            )
+                    ) AS requires_review_count,
+
+                    COUNT(*) FILTER (
+                        WHERE COALESCE(
+                            (details->'cost'->>'flagged')::boolean,
+                            FALSE
+                        )
+                    ) AS cost_flagged,
+
+                    COUNT(*) FILTER (
+                        WHERE COALESCE(
+                            (details->'delay'->>'flagged')::boolean,
+                            FALSE
+                        )
+                    ) AS delay_flagged,
+
+                    COUNT(*) FILTER (
+                        WHERE COALESCE(
+                            (details->'expenditure'->>'flagged')::boolean,
+                            FALSE
+                        )
+                    ) AS expenditure_flagged,
+
+                    COUNT(*) FILTER (
+                        WHERE COALESCE(
+                            (details->'duplicate'->>'flagged')::boolean,
+                            FALSE
+                        )
+                    ) AS duplicate_flagged,
+
+                    COUNT(*) FILTER (
+                        WHERE ml_eligible IS TRUE
+                    ) AS ml_eligible_count,
+
+                    COUNT(*) FILTER (
+                        WHERE ml_is_anomaly IS TRUE
+                    ) AS ml_anomaly_count,
+
+                    COUNT(*) FILTER (
+                        WHERE ml_status = 'ML_NOT_APPLICABLE'
+                    ) AS ml_not_applicable_count,
+
+                    COUNT(*) FILTER (
+                        WHERE ml_rule_agreement = 'ML_ONLY'
+                    ) AS ml_only_count,
+
+                    COUNT(*) FILTER (
+                        WHERE ml_rule_agreement = 'BOTH_HIGH'
+                    ) AS both_high_count
+
+                FROM projects
+                {where_sql}
+                """,
+                params,
+            )
+
+            totals = cur.fetchone()
+
+            # State-level aggregates.
+            cur.execute(
+                f"""
+                SELECT
+                    COALESCE(
+                        NULLIF(state_name, ''),
+                        'Unknown'
+                    ) AS state_name,
+                    COUNT(*) AS project_count,
+                    COALESCE(SUM(overall_score), 0) AS risk_total
+                FROM projects
+                {where_sql}
+                GROUP BY
+                    COALESCE(NULLIF(state_name, ''), 'Unknown')
+                ORDER BY state_name
+                """,
+                params,
+            )
+
+            state_rows = cur.fetchall()
 
     state_aggregates = [
         {
-            "state": state_name,
-            "projectCount": values["project_count"],
-            "averageRisk": round(values["risk_total"] / values["project_count"], 2),
+            "state": row["state_name"],
+            "projectCount": row["project_count"],
+            "averageRisk": round(
+                float(row["risk_total"]) / row["project_count"],
+                2,
+            ),
         }
-        for state_name, values in sorted(state_totals.items())
+        for row in state_rows
+        if row["project_count"]
     ]
 
     return ProjectAggregatesResponse(
-        totalProjects=total_projects,
-        totalSanctionAmount=round(total_sanction_amount, 2),
-        totalExpenditure=round(total_expenditure, 2),
+        totalProjects=totals["total_projects"],
+        totalSanctionAmount=round(
+            float(totals["total_sanction_amount"]),
+            2,
+        ),
+        totalExpenditure=round(
+            float(totals["total_expenditure"]),
+            2,
+        ),
         riskLevelCounts={
-            "low": risk_level_counts.get("LOW", 0),
-            "moderate": risk_level_counts.get("MODERATE", 0),
-            "high": risk_level_counts.get("HIGH", 0),
-            "critical": risk_level_counts.get("CRITICAL", 0),
+            "low": totals["low_count"],
+            "moderate": totals["moderate_count"],
+            "high": totals["high_count"],
+            "critical": totals["critical_count"],
         },
-        requiresReviewCount=requires_review_count,
+        requiresReviewCount=totals["requires_review_count"],
         stateAggregates=state_aggregates,
         flaggedComponentCounts={
-            component_name: flagged_component_counts.get(component_name, 0)
-            for component_name in _RISK_COMPONENTS
+            "cost": totals["cost_flagged"],
+            "delay": totals["delay_flagged"],
+            "expenditure": totals["expenditure_flagged"],
+            "duplicate": totals["duplicate_flagged"],
         },
-        mlEligibleCount=ml_eligible_count,
-        mlAnomalyCount=ml_anomaly_count,
-        mlNotApplicableCount=ml_not_applicable_count,
-        mlOnlyCount=ml_only_count,
-        bothHighCount=both_high_count,
+        mlEligibleCount=totals["ml_eligible_count"],
+        mlAnomalyCount=totals["ml_anomaly_count"],
+        mlNotApplicableCount=totals["ml_not_applicable_count"],
+        mlOnlyCount=totals["ml_only_count"],
+        bothHighCount=totals["both_high_count"],
     )
-
-
 @lru_cache(maxsize=1)
 def get_project_filter_options() -> ProjectFilterOptions:
-    """Returns cached distinct filter values from the processed dataset."""
-    records = _load_records()
-    states = sorted(
-        {str(record.get("state_name")) for record in records if record.get("state_name")}
-    )
-    categories = sorted(
-        {
-            str(record.get("work_category"))
-            for record in records
-            if record.get("work_category")
-        }
-    )
+    """Returns cached distinct filter values from PostgreSQL."""
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT DISTINCT state_name
+                FROM projects
+                WHERE state_name IS NOT NULL
+                  AND state_name <> ''
+                ORDER BY state_name
+                """
+            )
+            states = [row["state_name"] for row in cur.fetchall()]
+
+            cur.execute(
+                """
+                SELECT DISTINCT work_category
+                FROM projects
+                WHERE work_category IS NOT NULL
+                  AND work_category <> ''
+                ORDER BY work_category
+                """
+            )
+            categories = [row["work_category"] for row in cur.fetchall()]
+
     return ProjectFilterOptions(
         states=states,
         categories=categories,
@@ -738,55 +958,179 @@ def get_project_filter_options() -> ProjectFilterOptions:
 
 
 def get_project_by_id(project_id: str) -> Optional[ProjectRecord]:
-    """Returns a single project by ID using the cached lookup."""
-    record = _get_project_index().get(str(project_id))
-    return _to_project_record(record) if record is not None else None
+    """Returns a single project by ID using PostgreSQL."""
+
+    try:
+        numeric_project_id = int(project_id)
+    except (TypeError, ValueError):
+        return None
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT *
+                FROM projects
+                WHERE project_id = %s
+                """,
+                (numeric_project_id,),
+            )
+            db_row = cur.fetchone()
+
+    if db_row is None:
+        return None
+
+    record = dict(db_row)
+
+    details = record.pop("details") or {}
+    record.update(details)
+
+    # Preserve the existing JSON-backed API contract.
+    for field_name in (
+        "recommendation_date",
+        "sanction_date",
+        "first_expenditure_date",
+        "last_expenditure_date",
+    ):
+        value = record.get(field_name)
+        if value is not None and hasattr(value, "isoformat"):
+            record[field_name] = value.isoformat()
+
+    return _to_project_record(record)
 
 
 def get_project_official_work_ids(project_id: str) -> Optional[List[int]]:
     """Returns numeric completed-work WORK_ID values for official evidence."""
-    record = _get_project_index().get(str(project_id))
-    if record is None:
+
+    try:
+        numeric_project_id = int(project_id)
+    except (TypeError, ValueError):
         return None
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT details->'official_work_ids' AS official_work_ids
+                FROM projects
+                WHERE project_id = %s
+                """,
+                (numeric_project_id,),
+            )
+
+            row = cur.fetchone()
+
+    if row is None:
+        return None
+
+    work_ids = row["official_work_ids"] or []
+
     return [
         int(work_id)
-        for work_id in record.get("official_work_ids", [])
+        for work_id in work_ids
         if isinstance(work_id, int) and not isinstance(work_id, bool)
     ]
 
-
 def get_alerts(page: int = 1, page_size: int = 50) -> AlertsResponse:
-    """Returns a page of projects with detector-provided risk flags."""
-    start = (page - 1) * page_size
-    end = start + page_size
-    total = 0
-    alerts: List[AlertRecord] = []
+    """Returns a page of projects with detector-provided risk flags from PostgreSQL."""
 
-    for record in _load_records():
-        flagged_detectors = [
-            component_name
-            for component_name in _RISK_COMPONENTS
-            if record.get(component_name, {}).get("flagged") is True
-        ]
-        if not flagged_detectors:
-            continue
+    offset = (page - 1) * page_size
 
-        if start <= total < end:
-            alerts.append(
-                AlertRecord(
-                    projectId=str(record.get("project_id")),
-                    workName=record.get("work_description")
-                    or record.get("activity_name")
-                    or "",
-                    state=record.get("state_name"),
-                    constituency=record.get("constituency"),
-                    mpName=record.get("mp_name"),
-                    riskLevel=record.get("risk_level"),
-                    overallScore=record.get("overall_score"),
-                    flaggedDetectors=flagged_detectors,
-                )
+    flagged_condition = """
+        COALESCE((details->'cost'->>'flagged')::boolean, FALSE)
+        OR COALESCE((details->'delay'->>'flagged')::boolean, FALSE)
+        OR COALESCE((details->'expenditure'->>'flagged')::boolean, FALSE)
+        OR COALESCE((details->'duplicate'->>'flagged')::boolean, FALSE)
+    """
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+
+            cur.execute(
+                f"""
+                SELECT COUNT(*) AS total
+                FROM projects
+                WHERE {flagged_condition}
+                """
             )
-        total += 1
+
+            total = cur.fetchone()["total"]
+
+            cur.execute(
+                f"""
+                SELECT
+                    project_id,
+                    work_description,
+                    activity_name,
+                    state_name,
+                    constituency,
+                    mp_name,
+                    risk_level,
+                    overall_score,
+
+                    COALESCE(
+                        (details->'cost'->>'flagged')::boolean,
+                        FALSE
+                    ) AS cost_flagged,
+
+                    COALESCE(
+                        (details->'delay'->>'flagged')::boolean,
+                        FALSE
+                    ) AS delay_flagged,
+
+                    COALESCE(
+                        (details->'expenditure'->>'flagged')::boolean,
+                        FALSE
+                    ) AS expenditure_flagged,
+
+                    COALESCE(
+                        (details->'duplicate'->>'flagged')::boolean,
+                        FALSE
+                    ) AS duplicate_flagged
+
+                FROM projects
+                WHERE {flagged_condition}
+                ORDER BY project_id
+                LIMIT %s OFFSET %s
+                """,
+                (page_size, offset),
+            )
+
+            rows = cur.fetchall()
+
+    alerts = []
+
+    for row in rows:
+        flagged_detectors = []
+
+        if row["cost_flagged"]:
+            flagged_detectors.append("cost")
+
+        if row["delay_flagged"]:
+            flagged_detectors.append("delay")
+
+        if row["expenditure_flagged"]:
+            flagged_detectors.append("expenditure")
+
+        if row["duplicate_flagged"]:
+            flagged_detectors.append("duplicate")
+
+        alerts.append(
+            AlertRecord(
+                projectId=str(row["project_id"]),
+                workName=(
+                    row["work_description"]
+                    or row["activity_name"]
+                    or ""
+                ),
+                state=row["state_name"],
+                constituency=row["constituency"],
+                mpName=row["mp_name"],
+                riskLevel=row["risk_level"],
+                overallScore=row["overall_score"],
+                flaggedDetectors=flagged_detectors,
+            )
+        )
 
     return AlertsResponse(
         total=total,
@@ -795,7 +1139,6 @@ def get_alerts(page: int = 1, page_size: int = 50) -> AlertsResponse:
         totalPages=_page_count(total, page_size),
         alerts=alerts,
     )
-
 
 @lru_cache(maxsize=1)
 def get_statistics() -> StatisticsResponse:
