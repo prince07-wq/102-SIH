@@ -17,6 +17,8 @@ What this file does NOT do
 - No ML or risk calculation.
 """
 
+import os
+
 from fastapi import FastAPI  # type: ignore
 from fastapi.middleware.cors import CORSMiddleware  # type: ignore
 
@@ -38,14 +40,21 @@ app = FastAPI(
 )
 
 # ---------------------------------------------------------------------------
-# CORS — allow the local React dev server (Vite default port 5173)
+# CORS — keep local Vite support and allow configured deployment origins
 # ---------------------------------------------------------------------------
+
+cors_origins = ["http://localhost:5173"]
+cors_origins.extend(
+    origin.strip()
+    for origin in os.getenv("CORS_ORIGINS", "").split(",")
+    if origin.strip()
+)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
-    allow_credentials=False,
-    allow_methods=["GET"],
+    allow_origins=list(dict.fromkeys(cors_origins)),
+    allow_credentials=True,
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
@@ -71,11 +80,3 @@ def root():
 
 
 app.include_router(auth.router)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)

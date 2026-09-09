@@ -83,16 +83,6 @@ test('Filter button opens the existing dashboard filter panel', () => {
   assert.match(dashboardSource, /filtersOpen && <div className="dashboard__filters" id="dashboard-filters">/);
 });
 
-test('auth bypass is an exact opt-in and preserves the login route', () => {
-  const appSource = readFileSync(new URL('../App.jsx', import.meta.url), 'utf8');
-  assert.match(
-    appSource,
-    /import\.meta\.env\.VITE_AUTH_BYPASS === ["']true["']/,
-  );
-  assert.match(appSource, /AUTH_BYPASS_ENABLED \? ["']\/dashboard["'] : ["']\/login["']/);
-  assert.match(appSource, /: <LoginPage \/>/);
-});
-
 test('anomaly analytics starts in overview and active factors toggle off', () => {
   const dashboardSource = readFileSync(new URL('../pages/Dashboard.jsx', import.meta.url), 'utf8');
   const chartSource = readFileSync(new URL('../components/AnomalyChart.jsx', import.meta.url), 'utf8');

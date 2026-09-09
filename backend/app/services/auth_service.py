@@ -5,7 +5,7 @@ import bcrypt
 from datetime import datetime, timedelta
 from pymongo.errors import DuplicateKeyError
 
-from app.database import users_collection
+from app.database import get_users_collection
 
 
 JWT_SECRET = os.getenv("JWT_SECRET")
@@ -26,6 +26,9 @@ def verify_password(password: str, hashed_password: str) -> bool:
 
 
 def create_token(user_id: str) -> str:
+    if not JWT_SECRET:
+        raise RuntimeError("JWT_SECRET is not set")
+
     payload = {
         "user_id": user_id,
         "exp": datetime.utcnow() + timedelta(hours=24)
@@ -39,6 +42,7 @@ def create_token(user_id: str) -> str:
 
 
 def register_user(login_id: str, password: str):
+    users_collection = get_users_collection()
 
     existing_user = users_collection.find_one({
         "loginId": login_id
@@ -61,6 +65,7 @@ def register_user(login_id: str, password: str):
 
 
 def authenticate_user(login_id: str, password: str):
+    users_collection = get_users_collection()
 
     user = users_collection.find_one({
         "loginId": login_id

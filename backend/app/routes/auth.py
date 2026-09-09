@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+from pymongo.errors import PyMongoError
 
 from app.schemas.auth import (
     RegisterRequest,
@@ -19,11 +20,16 @@ router = APIRouter(
 
 @router.post("/register")
 def register(data: RegisterRequest):
-
-    user_id = register_user(
-        data.loginId,
-        data.password
-    )
+    try:
+        user_id = register_user(
+            data.loginId,
+            data.password
+        )
+    except (PyMongoError, RuntimeError):
+        raise HTTPException(
+            status_code=503,
+            detail="Authentication service is temporarily unavailable"
+        )
 
     if user_id is None:
         raise HTTPException(
@@ -39,11 +45,16 @@ def register(data: RegisterRequest):
 
 @router.post("/login")
 def login(data: LoginRequest):
-
-    token = authenticate_user(
-        data.loginId,
-        data.password
-    )
+    try:
+        token = authenticate_user(
+            data.loginId,
+            data.password
+        )
+    except (PyMongoError, RuntimeError):
+        raise HTTPException(
+            status_code=503,
+            detail="Authentication service is temporarily unavailable"
+        )
 
     if token is None:
         raise HTTPException(

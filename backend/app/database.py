@@ -1,16 +1,20 @@
 import os
+from functools import lru_cache
+
 from pymongo import MongoClient
 from dotenv import load_dotenv
 
 load_dotenv()
 
-MONGO_URI = os.getenv("MONGO_URI")
 
-if not MONGO_URI:
-    raise RuntimeError("MONGO_URI is not set")
+@lru_cache(maxsize=1)
+def get_mongo_client():
+    """Creates the Mongo client only when an authentication request needs it."""
+    mongo_uri = os.getenv("MONGO_URI")
+    if not mongo_uri:
+        raise RuntimeError("MONGO_URI is not set")
+    return MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
 
-client = MongoClient(MONGO_URI)
 
-db = client["mplads"]
-
-users_collection = db["users"]
+def get_users_collection():
+    return get_mongo_client()["mplads"]["users"]
