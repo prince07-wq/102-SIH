@@ -11,6 +11,7 @@ import {
   getProjectExportUrl,
   getApiAssetUrl,
   getProjectEvidence,
+  getFactorAnalytics,
   getProjects,
 } from './api.js';
 import {
@@ -56,11 +57,49 @@ test('project queries preserve the backend ML filter names', () => {
   assert.equal(query.get('ml_rule_agreement'), 'ML_ONLY');
 });
 
+test('factor analytics request uses the selected rule detector and scope', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    calls.push(url);
+    return { ok: true, json: async () => ({ factor: 'delay', stateMetrics: [] }) };
+  };
+
+  try {
+    await getFactorAnalytics('delay', { state: 'Karnataka', category: 'Roads' });
+    const requestUrl = new URL(calls[0]);
+    assert.equal(requestUrl.pathname, '/api/projects/analytics/factors/delay');
+    assert.equal(requestUrl.searchParams.get('state'), 'Karnataka');
+    assert.equal(requestUrl.searchParams.get('category'), 'Roads');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('Filter button opens the existing dashboard filter panel', () => {
   const dashboardSource = readFileSync(new URL('../pages/Dashboard.jsx', import.meta.url), 'utf8');
   assert.match(dashboardSource, /onClick=\{\(\) => setFiltersOpen\(\(open\) => !open\)\}/);
   assert.match(dashboardSource, /aria-expanded=\{filtersOpen\}/);
   assert.match(dashboardSource, /filtersOpen && <div className="dashboard__filters" id="dashboard-filters">/);
+});
+
+test('auth bypass is an exact opt-in and preserves the login route', () => {
+  const appSource = readFileSync(new URL('../App.jsx', import.meta.url), 'utf8');
+  assert.match(
+    appSource,
+    /import\.meta\.env\.VITE_AUTH_BYPASS === ["']true["']/,
+  );
+  assert.match(appSource, /AUTH_BYPASS_ENABLED \? ["']\/dashboard["'] : ["']\/login["']/);
+  assert.match(appSource, /: <LoginPage \/>/);
+});
+
+test('anomaly analytics starts in overview and active factors toggle off', () => {
+  const dashboardSource = readFileSync(new URL('../pages/Dashboard.jsx', import.meta.url), 'utf8');
+  const chartSource = readFileSync(new URL('../components/AnomalyChart.jsx', import.meta.url), 'utf8');
+  assert.match(dashboardSource, /\[factor, setFactor\] = useState\(null\)/);
+  assert.match(dashboardSource, /if \(!factor\) return undefined/);
+  assert.match(chartSource, /onFactorChange\(item\.key === factor \? null : item\.key\)/);
+  assert.match(chartSource, /!factor && \(/);
 });
 
 test('applying existing and ML filters updates the backend project request', async () => {

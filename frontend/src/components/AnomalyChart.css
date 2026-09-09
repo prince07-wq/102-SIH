@@ -7,6 +7,62 @@
   height: 100%;
   display: flex;
   flex-direction: column;
+  min-height: 330px;
+  min-width: 0;
+}
+
+.anomaly-chart__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.anomaly-chart__subtitle {
+  margin: 4px 0 0;
+  color: var(--text-tertiary);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+.anomaly-chart__factors {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+}
+
+.anomaly-chart__factors button {
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.anomaly-chart__factors button:hover,
+.anomaly-chart__factors button.is-active {
+  background: var(--bg-card);
+  color: var(--brand-primary);
+  box-shadow: var(--shadow-xs);
+}
+
+.anomaly-chart__ranking {
+  max-height: 510px;
+  margin-top: 14px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.anomaly-chart__ranking .recharts-bar-rectangle:focus {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 1px;
 }
 
 .anomaly-chart__body {
@@ -15,6 +71,40 @@
   gap: 14px;
   margin-top: 6px;
   flex: 1;
+}
+
+.anomaly-chart__state-view {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(320px, 1.1fr);
+  gap: 18px;
+  margin-top: 14px;
+}
+
+.anomaly-chart__state-view--factor {
+  grid-template-columns: 1fr;
+}
+
+.anomaly-chart__state-section {
+  min-width: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.anomaly-chart__state-section h4 {
+  margin: 0 0 4px;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 650;
+}
+
+.anomaly-chart__distribution {
+  width: 100%;
+}
+
+.anomaly-chart__note {
+  margin: -2px 0 0;
+  color: var(--text-tertiary);
+  font-size: 10.5px;
 }
 
 .anomaly-chart__donut {
@@ -85,4 +175,72 @@
   font-weight: 600;
   color: var(--text-primary);
   font-size: 12px;
+}
+
+.anomaly-chart__tooltip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-md);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+}
+
+.anomaly-chart__tooltip strong {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.anomaly-chart__status {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 220px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  text-align: center;
+}
+
+.anomaly-chart__status--error {
+  color: var(--risk-high);
+}
+
+.anomaly-chart__status button {
+  border: 1px solid var(--brand-primary);
+  border-radius: var(--radius-sm);
+  padding: 5px 9px;
+  background: var(--bg-card);
+  color: var(--brand-primary);
+  cursor: pointer;
+}
+
+@media (max-width: 1180px) {
+  .anomaly-chart__state-view {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .anomaly-chart {
+    padding: 16px 12px;
+  }
+
+  .anomaly-chart__factors {
+    width: 100%;
+  }
+
+  .anomaly-chart__factors button {
+    flex: 1;
+    padding-inline: 4px;
+  }
+
+  .anomaly-chart__ranking {
+    max-height: 460px;
+  }
 }

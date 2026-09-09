@@ -92,6 +92,15 @@ export function getProjectAggregates(filters = {}, signal) {
   return request(`/api/projects/aggregates${query ? `?${query}` : ''}`, { signal });
 }
 
+export function getFactorAnalytics(factor, filters = {}, signal) {
+  const params = buildProjectQuery(filters);
+  const query = params.toString();
+  return request(
+    `/api/projects/analytics/factors/${encodeURIComponent(factor)}${query ? `?${query}` : ''}`,
+    { signal },
+  );
+}
+
 export async function getProjectById(id, signal) {
   try {
     return await request(`/api/projects/${encodeURIComponent(id)}`, { signal });

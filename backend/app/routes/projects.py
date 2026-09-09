@@ -12,13 +12,14 @@ project_service.py.  This layer does NOT read projects.json directly.
 
 import mimetypes
 import os
-from typing import Optional
+from typing import Literal, Optional
 from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse, StreamingResponse
 
 from app.schemas.project import (
+    FactorAnalyticsResponse,
     ProjectAggregatesResponse,
     ProjectFilterOptions,
     ProjectEvidenceResponse,
@@ -108,6 +109,35 @@ def get_project_aggregates(
 ):
     """Returns analytics across the complete filtered project result set."""
     return project_service.get_project_aggregates(
+        risk=risk,
+        state=state,
+        category=category,
+        search=search,
+        ml_eligible=ml_eligible,
+        ml_is_anomaly=ml_is_anomaly,
+        ml_anomaly_level=ml_anomaly_level,
+        ml_rule_agreement=ml_rule_agreement,
+    )
+
+
+@router.get(
+    "/analytics/factors/{factor}",
+    response_model=FactorAnalyticsResponse,
+)
+def get_factor_analytics(
+    factor: Literal["cost", "delay", "expenditure", "duplicate"],
+    risk: Optional[str] = Query(default=None),
+    state: Optional[str] = Query(default=None),
+    category: Optional[str] = Query(default=None),
+    search: Optional[str] = Query(default=None),
+    ml_eligible: Optional[bool] = Query(default=None),
+    ml_is_anomaly: Optional[bool] = Query(default=None),
+    ml_anomaly_level: Optional[str] = Query(default=None),
+    ml_rule_agreement: Optional[str] = Query(default=None),
+):
+    """Returns PostgreSQL aggregates for one explainable risk detector."""
+    return project_service.get_factor_analytics(
+        factor=factor,
         risk=risk,
         state=state,
         category=category,

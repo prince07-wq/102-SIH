@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import StatCard from '../components/StatCard';
 import HeatMap from '../components/HeatMap';
+import { getCanonicalStateId } from '../components/heatMapModel';
 import AnomalyChart from '../components/AnomalyChart';
 import RiskyProj from '../components/RiskyProj';
 import Insights from '../components/Insights';
@@ -13,6 +14,7 @@ import {
   buildSummary,
   FALLBACK_FILTER_OPTIONS,
   getProjectAggregates,
+  getFactorAnalytics,
   getProjectExportUrl,
   getProjectFilterOptions,
   getProjects,
@@ -45,6 +47,13 @@ export default function Dashboard() {
   const [projectsError, setProjectsError] = useState(null);
   const [projectPage, setProjectPage] = useState({ total: 0, page: 1, pageSize: PAGE_SIZE, totalPages: 0, projects: [] });
   const [aggregates, setAggregates] = useState(null);
+  const [heatmapAggregates, setHeatmapAggregates] = useState(null);
+  const [selectedMapStateId, setSelectedMapStateId] = useState(null);
+  const [factor, setFactor] = useState(null);
+  const [factorAnalytics, setFactorAnalytics] = useState(null);
+  const [factorAnalyticsLoading, setFactorAnalyticsLoading] = useState(false);
+  const [factorAnalyticsError, setFactorAnalyticsError] = useState(null);
+  const [factorAnalyticsRequest, setFactorAnalyticsRequest] = useState(0);
   const [filterOptions, setFilterOptions] = useState(FALLBACK_FILTER_OPTIONS);
   const [pageState, setPageState] = useState({ page: 1, signature: '' });
   const [briefOpen, setBriefOpen] = useState(false);
@@ -52,6 +61,22 @@ export default function Dashboard() {
   const querySignature = `${JSON.stringify(filters)}|${search}`;
   const page = pageState.signature === querySignature ? pageState.page : 1;
   const scope = useMemo(() => ({ ...filters, search }), [filters, search]);
+  const heatmapScope = useMemo(() => ({
+    risk: filters.risk,
+    state: 'All',
+    category: filters.category,
+    mlIsAnomaly: filters.mlIsAnomaly,
+    mlAnomalyLevel: filters.mlAnomalyLevel,
+    mlRuleAgreement: filters.mlRuleAgreement,
+    search,
+  }), [
+    filters.risk,
+    filters.category,
+    filters.mlIsAnomaly,
+    filters.mlAnomalyLevel,
+    filters.mlRuleAgreement,
+    search,
+  ]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -86,6 +111,43 @@ export default function Dashboard() {
 
   useEffect(() => {
     const controller = new AbortController();
+    getProjectAggregates(heatmapScope, controller.signal)
+      .then((response) => {
+        setHeatmapAggregates(response);
+        const availableIds = new Set(
+          response.stateAggregates.map((row) => getCanonicalStateId(row.state)),
+        );
+        setSelectedMapStateId((current) => (
+          current && !availableIds.has(current) ? null : current
+        ));
+      })
+      .catch((loadError) => {
+        if (loadError.name !== 'AbortError') setHeatmapAggregates(null);
+      });
+    return () => controller.abort();
+  }, [heatmapScope]);
+
+  useEffect(() => {
+    if (!factor) return undefined;
+    const controller = new AbortController();
+    // oxlint-disable-next-line react/set-state-in-effect -- marks the request lifecycle.
+    setFactorAnalyticsLoading(true);
+    getFactorAnalytics(factor, scope, controller.signal)
+      .then((response) => {
+        setFactorAnalytics(response);
+        setFactorAnalyticsError(null);
+      })
+      .catch((loadError) => {
+        if (loadError.name !== 'AbortError') setFactorAnalyticsError(loadError.message);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setFactorAnalyticsLoading(false);
+      });
+    return () => controller.abort();
+  }, [factor, factorAnalyticsRequest, scope]);
+
+  useEffect(() => {
+    const controller = new AbortController();
     // oxlint-disable-next-line react/set-state-in-effect -- marks the request lifecycle.
     setProjectsLoading(true);
     if (search) setSearchMeta({ loading: true, count: null, results: [] });
@@ -107,7 +169,10 @@ export default function Dashboard() {
     return () => controller.abort();
   }, [page, scope, search, setSearchMeta]);
 
-  const stateRiskData = useMemo(() => (aggregates ? buildStateRiskData(aggregates) : []), [aggregates]);
+  const stateRiskData = useMemo(() => {
+    const source = heatmapAggregates || (filters.state === 'All' ? aggregates : null);
+    return source ? buildStateRiskData(source) : [];
+  }, [aggregates, filters.state, heatmapAggregates]);
   const anomalyData = useMemo(() => (aggregates ? buildAnomalyDistribution(aggregates) : []), [aggregates]);
   const insights = useMemo(() => (aggregates ? buildInsights(aggregates) : []), [aggregates]);
   const summary = useMemo(() => (aggregates ? buildSummary(aggregates) : null), [aggregates]);
@@ -118,8 +183,14 @@ export default function Dashboard() {
     setPageState({ page: 1, signature: '' });
   }
 
+  function updateStateFilter(state) {
+    setSelectedMapStateId(state === 'All' ? null : getCanonicalStateId(state));
+    updateFilter('state', state);
+  }
+
   function resetFilters() {
     reset();
+    setSelectedMapStateId(null);
     setPageState({ page: 1, signature: '' });
   }
 
@@ -166,15 +237,36 @@ export default function Dashboard() {
       </section>
 
       <div className="dashboard__geo-row">
-        <div className="dashboard__geo-map"><HeatMap data={stateRiskData} onApplyState={(state) => updateFilter('state', state)} /></div>
-        <div className="dashboard__geo-chart"><AnomalyChart data={anomalyData} centerLabel={formatNumberIN(aggregates.totalProjects)} centerSublabel="Matching" /></div>
+        <div className="dashboard__geo-map">
+          <HeatMap
+            data={stateRiskData}
+            selectedStateId={selectedMapStateId}
+            onSelectState={setSelectedMapStateId}
+            onApplyState={(record) => updateStateFilter(record.backendState)}
+          />
+        </div>
+        <div className="dashboard__geo-chart">
+          <AnomalyChart
+            data={anomalyData}
+            centerLabel={formatNumberIN(aggregates.totalProjects)}
+            centerSublabel="Matching"
+            analytics={factorAnalytics}
+            factor={factor}
+            selectedState={filters.state}
+            loading={factorAnalyticsLoading}
+            error={factorAnalyticsError}
+            onFactorChange={setFactor}
+            onStateSelect={(state) => { if (state) updateStateFilter(state); }}
+            onRetry={() => setFactorAnalyticsRequest((request) => request + 1)}
+          />
+        </div>
       </div>
 
       <div className="dashboard__work-row">
         <div className="dashboard__work-main">
           {filtersOpen && <div className="dashboard__filters" id="dashboard-filters">
             <FilterSelect label="Risk" value={filters.risk} onChange={(value) => updateFilter('risk', value)} options={filterOptions.riskLevels} />
-            <FilterSelect label="State" value={filters.state} onChange={(value) => updateFilter('state', value)} options={filterOptions.states} />
+            <FilterSelect label="State" value={filters.state} onChange={updateStateFilter} options={filterOptions.states} />
             <FilterSelect label="Category" value={filters.category} onChange={(value) => updateFilter('category', value)} options={filterOptions.categories} />
             <FilterSelect label="ML anomaly" value={filters.mlIsAnomaly} onChange={(value) => updateFilter('mlIsAnomaly', value)} options={ML_ANOMALY_OPTIONS} />
             <FilterSelect label="ML level" value={filters.mlAnomalyLevel} onChange={(value) => updateFilter('mlAnomalyLevel', value)} options={ML_LEVEL_OPTIONS} />

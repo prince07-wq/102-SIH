@@ -238,6 +238,33 @@ class ProjectAggregatesResponse(BaseModel):
     bothHighCount: int
 
 
+class FactorStateMetric(BaseModel):
+    """One state's aggregate for a detector-provided component score."""
+
+    state: str
+    averageScore: Optional[float]
+    flaggedProjects: int
+    totalProjects: int
+
+
+class FactorScoreBand(BaseModel):
+    """Project count in one detector score interval."""
+
+    label: str
+    projectCount: int
+
+
+class FactorAnalyticsResponse(BaseModel):
+    """PostgreSQL aggregates for one explainable anomaly detector."""
+
+    factor: Literal["cost", "delay", "expenditure", "duplicate"]
+    stateMetrics: List[FactorStateMetric]
+    scoreBands: List[FactorScoreBand]
+    scoredProjects: int
+    unscoredProjects: int
+    outOfRangeProjects: int
+
+
 # ---------------------------------------------------------------------------
 # Statistics response
 # ---------------------------------------------------------------------------

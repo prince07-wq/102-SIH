@@ -58,6 +58,17 @@ export function buildIndiaMapModel(data = [], warn = null) {
   const byId = {};
   const byMapName = {};
   const unmatched = [];
+  for (const feature of INDIA_STATE_FEATURES) {
+    const record = {
+      id: feature.id,
+      state: feature.name,
+      backendState: null,
+      score: null,
+      projectCount: null,
+    };
+    byId[feature.id] = record;
+    for (const mapName of feature.mapNames) byMapName[mapName] = record;
+  }
   for (const row of Array.isArray(data) ? data : []) {
     const feature = FEATURE_BY_NAME.get(normalizeStateName(row?.state));
     if (!feature) {
@@ -65,17 +76,27 @@ export function buildIndiaMapModel(data = [], warn = null) {
       if (warn) warn(`India risk map: unmatched backend state name: ${String(row?.state)}`);
       continue;
     }
-    if (byId[feature.id]) {
+    if (byId[feature.id].backendState !== null) {
       if (warn) warn(`India risk map: duplicate aggregate row mapped to ${feature.name}`);
       continue;
     }
-    byId[feature.id] = {
-      id: feature.id, state: feature.name, backendState: row.state,
+    Object.assign(byId[feature.id], {
+      backendState: row.state,
       score: finiteNumber(row.score), projectCount: finiteNumber(row.projectCount),
-    };
-    for (const mapName of feature.mapNames) byMapName[mapName] = byId[feature.id];
+    });
   }
-  return { features: INDIA_STATE_FEATURES, records: Object.values(byId), byId, byMapName, unmatched };
+  const records = Object.values(byId).filter((record) => record.backendState !== null);
+  return { features: INDIA_STATE_FEATURES, records, byId, byMapName, unmatched };
+}
+
+/** Maps the state-name payload emitted by @react-map/india to our stable ID. */
+export function resolveMapSelection(mapStateName, byMapName) {
+  return mapStateName ? byMapName?.[mapStateName] ?? null : null;
+}
+
+/** Resolves backend/display state names to the same stable feature ID. */
+export function getCanonicalStateId(stateName) {
+  return FEATURE_BY_NAME.get(normalizeStateName(stateName))?.id ?? null;
 }
 
 export function sortMapRecords(records, mode = 'score') {

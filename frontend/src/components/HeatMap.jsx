@@ -1,23 +1,22 @@
 import { useMemo, useState } from 'react';
 import IndiaMap from '@react-map/india';
 import { formatNumberIN } from '../utils/format';
-import { buildIndiaMapModel, scoreToColor, selectMapState, sortMapRecords } from './heatMapModel';
+import { buildIndiaMapModel, resolveMapSelection, scoreToColor, selectMapState, sortMapRecords } from './heatMapModel';
 import { INDIA_MAP_LABELS } from './heatMapLabels';
 import './HeatMap.css';
 
 const IndiaMapComponent = IndiaMap.default ?? IndiaMap;
 
 /** India choropleth using the dashboard's already-loaded aggregate data. */
-export default function HeatMap({ data = [], onApplyState }) {
+export default function HeatMap({ data = [], selectedStateId, onSelectState, onApplyState }) {
   const [sortMode, setSortMode] = useState('score');
-  const [selectedId, setSelectedId] = useState(null);
   const [tooltip, setTooltip] = useState(null);
   const model = useMemo(() => buildIndiaMapModel(
     data,
     import.meta.env.DEV ? (message) => console.warn(message) : null,
   ), [data]);
   const sorted = useMemo(() => sortMapRecords(model.records, sortMode), [model.records, sortMode]);
-  const selected = model.byId[selectedId] ?? sorted[0] ?? null;
+  const selected = selectedStateId ? model.byId[selectedStateId] ?? null : null;
   const cityColors = useMemo(() => Object.fromEntries(model.features.flatMap((feature) =>
     feature.mapNames.map((mapName) => [mapName, scoreToColor(model.byId[feature.id]?.score)]),
   )), [model]);
@@ -40,14 +39,19 @@ export default function HeatMap({ data = [], onApplyState }) {
     setTooltip({ record, x: event.clientX - bounds.left + 12, y: event.clientY - bounds.top + 12 });
   }
 
-  function handleMapClick(event) {
-    const record = getRecordFromEvent(event);
-    if (record) selectMapState(record.id, model.byId, (next) => setSelectedId(next.id));
+  function selectState(stateId) {
+    selectMapState(stateId, model.byId, (next) => {
+      if (next.backendState) onSelectState?.(next.id);
+    });
   }
 
-  function handleLibrarySelect(mapName) {
-    const record = model.byMapName[mapName];
-    if (record) setSelectedId(record.id);
+  function handleLibrarySelect(mapStateName) {
+    if (mapStateName === null) {
+      onSelectState?.(null);
+      return;
+    }
+    const record = resolveMapSelection(mapStateName, model.byMapName);
+    if (record) selectState(record.id);
   }
 
   return (
@@ -65,10 +69,10 @@ export default function HeatMap({ data = [], onApplyState }) {
       <div className="heatmap__content">
         <div className="heatmap__map-column">
           <div className="heatmap__map" aria-label="India state and union territory risk map"
-            onPointerMove={handlePointerMove} onPointerLeave={() => setTooltip(null)} onClick={handleMapClick}>
+            onPointerMove={handlePointerMove} onPointerLeave={() => setTooltip(null)}>
             <style>{selectedStyle}</style>
             <div className="heatmap__svg">
-              <IndiaMapComponent type="select-single" size={500} mapColor="rgb(226, 231, 227)" cityColors={cityColors}
+              <IndiaMapComponent key={selectedStateId ?? 'no-state'} type="select-single" size={500} mapColor="rgb(226, 231, 227)" cityColors={cityColors}
                 strokeColor="rgba(255, 255, 255, 0.95)" strokeWidth={1.15} hoverColor={undefined}
                 selectColor={scoreToColor(selected?.score)} hints={false} onSelect={handleLibrarySelect} />
             </div>
@@ -109,13 +113,13 @@ export default function HeatMap({ data = [], onApplyState }) {
               <div><dt>Average Risk Score</dt><dd>{selected.score ?? 'Not available'}</dd></div>
               <div><dt>Total Projects</dt><dd>{selected.projectCount === null ? 'Not available' : formatNumberIN(selected.projectCount)}</dd></div>
             </dl>
-            {onApplyState && <button type="button" className="heatmap__cta" onClick={() => onApplyState(selected.backendState)}>
+            {onApplyState && selected.backendState && <button type="button" className="heatmap__cta" onClick={() => onApplyState(selected)}>
               View projects in {selected.state} <span aria-hidden="true">→</span>
             </button>}
           </> : <p className="heatmap__empty">No state-level risk data is available for this selection.</p>}
           {sorted.length > 0 && <div className="heatmap__ranking" aria-label="State risk ranking">
             {sorted.map((record) => <button type="button" key={record.id} className={record.id === selected?.id ? 'is-selected' : ''}
-              onClick={() => setSelectedId(record.id)}><span>{record.state}</span><strong>{record.score ?? '—'}</strong></button>)}
+              onClick={() => selectState(record.id)}><span>{record.state}</span><strong>{record.score ?? '—'}</strong></button>)}
           </div>}
         </aside>
       </div>

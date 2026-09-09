@@ -487,6 +487,50 @@ class TestProjectAggregates:
         assert before == after
 
 
+class TestFactorAnalytics:
+    def test_nationwide_factor_ranking_uses_detector_scores(self):
+        data = get_json("/api/projects/analytics/factors/delay")
+        assert data["factor"] == "delay"
+        assert len(data["stateMetrics"]) == 36
+        assert sum(row["totalProjects"] for row in data["stateMetrics"]) == 78079
+        assert sum(row["flaggedProjects"] for row in data["stateMetrics"]) == 1477
+        assert [row["averageScore"] for row in data["stateMetrics"]] == sorted(
+            (row["averageScore"] for row in data["stateMetrics"]), reverse=True
+        )
+
+    def test_state_distribution_uses_native_detector_bands(self):
+        data = get_json(
+            "/api/projects/analytics/factors/cost?state=Karnataka"
+        )
+        assert data["stateMetrics"] == [
+            {
+                "state": "Karnataka",
+                "averageScore": 13.34,
+                "flaggedProjects": 334,
+                "totalProjects": 2596,
+            }
+        ]
+        assert [band["label"] for band in data["scoreBands"]] == [
+            "0-19", "20-49", "50-79", "80-100"
+        ]
+        assert sum(band["projectCount"] for band in data["scoreBands"]) == 2596
+        assert data["scoredProjects"] == 2596
+        assert data["unscoredProjects"] == 0
+        assert data["outOfRangeProjects"] == 0
+
+    def test_unknown_factor_is_rejected(self):
+        get_json(
+            "/api/projects/analytics/factors/ml",
+            expected_status=422,
+        )
+
+    def test_expenditure_distribution_excludes_not_applicable_projects(self):
+        data = get_json("/api/projects/analytics/factors/expenditure")
+        assert data["scoredProjects"] == 55656
+        assert data["unscoredProjects"] == 22423
+        assert sum(band["projectCount"] for band in data["scoreBands"]) == 55656
+
+
 class TestProjectExport:
     def test_export_uses_the_same_filtered_result_set(self):
         params = {

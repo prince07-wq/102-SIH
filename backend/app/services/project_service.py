@@ -20,6 +20,7 @@ from app.db import get_connection
 from app.schemas.project import (
     AlertRecord,
     AlertsResponse,
+    FactorAnalyticsResponse,
     ProjectAggregatesResponse,
     ProjectFilterOptions,
     ProjectListResponse,
@@ -32,6 +33,22 @@ from app.services.search_config import (
 )
 
 _RISK_COMPONENTS = ["cost", "delay", "expenditure", "duplicate"]
+_FACTOR_SCORE_BANDS = (
+    ("0-19", 0, 20),
+    ("20-49", 20, 50),
+    ("50-79", 50, 80),
+    ("80-100", 80, 101),
+)
+_SEARCHABLE_COLUMNS = (
+    "work_description",
+    "activity_name",
+    "state_name",
+    "constituency",
+    "mp_name",
+    "ida_name",
+    "vendor_names",
+    "work_ids_text",
+)
 
 
 def _to_vendor_record(vendor):
@@ -216,6 +233,99 @@ def _query_groups(search_value):
     return tuple(groups)
 
 
+def _project_filter_sql(
+    risk=None,
+    state=None,
+    category=None,
+    search=None,
+    ml_eligible=None,
+    ml_is_anomaly=None,
+    ml_anomaly_level=None,
+    ml_rule_agreement=None,
+    rank_exact_project_id=False,
+):
+    """Builds the canonical PostgreSQL predicate shared by scoped endpoints."""
+    conditions = []
+    params = []
+    search_order = ""
+    order_params = []
+
+    if risk:
+        conditions.append("risk_level = %s")
+        params.append(_risk_filter_value(risk))
+    if state:
+        conditions.append("state_name ILIKE %s")
+        params.append(f"%{state.strip()}%")
+    if category:
+        conditions.append("LOWER(work_category) = LOWER(%s)")
+        params.append(category.strip())
+    if ml_eligible is not None:
+        conditions.append("ml_eligible = %s")
+        params.append(ml_eligible)
+    if ml_is_anomaly is not None:
+        conditions.append("ml_is_anomaly = %s")
+        params.append(ml_is_anomaly)
+    if ml_anomaly_level:
+        conditions.append("ml_anomaly_level = %s")
+        params.append(ml_anomaly_level.strip().upper())
+    if ml_rule_agreement:
+        conditions.append("ml_rule_agreement = %s")
+        params.append(ml_rule_agreement.strip().upper())
+
+    if search and search.strip():
+        search_value = _normalize_search_text(search)
+        groups = _query_groups(search_value)
+        search_sql_parts = []
+        search_params = []
+
+        for group in groups:
+            variant_sql_parts = []
+            for variant in group:
+                token_sql_parts = []
+                for token in variant:
+                    field_checks = []
+                    for column in _SEARCHABLE_COLUMNS:
+                        field_checks.append(f"{column} ILIKE %s")
+                        search_params.append(f"%{token}%")
+                    token_sql_parts.append(
+                        "(" + " OR ".join(field_checks) + ")"
+                    )
+                if token_sql_parts:
+                    variant_sql_parts.append(
+                        "(" + " AND ".join(token_sql_parts) + ")"
+                    )
+            if variant_sql_parts:
+                search_sql_parts.append(
+                    "(" + " OR ".join(variant_sql_parts) + ")"
+                )
+
+        if search_sql_parts:
+            search_expression = " AND ".join(search_sql_parts)
+            if search_value.isdigit():
+                conditions.append(
+                    f"(project_id = %s OR ({search_expression}))"
+                )
+                params.append(int(search_value))
+                params.extend(search_params)
+                if rank_exact_project_id:
+                    search_order = (
+                        "CASE WHEN project_id = %s THEN 0 ELSE 1 END,"
+                    )
+                    order_params.append(int(search_value))
+            else:
+                conditions.append(f"({search_expression})")
+                params.extend(search_params)
+        elif search_value.isdigit():
+            conditions.append("project_id = %s")
+            params.append(int(search_value))
+            if rank_exact_project_id:
+                search_order = "CASE WHEN project_id = %s THEN 0 ELSE 1 END,"
+                order_params.append(int(search_value))
+
+    where_sql = "WHERE " + " AND ".join(conditions) if conditions else ""
+    return where_sql, params, search_order, order_params
+
+
 def _db_record(row):
     """Converts a PostgreSQL row back to the pipeline-record shape."""
     record = dict(row)
@@ -247,125 +357,16 @@ def get_all_projects(
     page: int = 1,
     page_size: int = 50,
 ) -> ProjectListResponse:
-
-    conditions = []
-    params = []
-
-    if risk:
-        conditions.append("risk_level = %s")
-        params.append(_risk_filter_value(risk))
-
-    if state:
-        conditions.append("state_name ILIKE %s")
-        params.append(f"%{state.strip()}%")
-
-    if category:
-        conditions.append("LOWER(work_category) = LOWER(%s)")
-        params.append(category.strip())
-
-    if ml_eligible is not None:
-        conditions.append("ml_eligible = %s")
-        params.append(ml_eligible)
-
-    if ml_is_anomaly is not None:
-        conditions.append("ml_is_anomaly = %s")
-        params.append(ml_is_anomaly)
-
-    if ml_anomaly_level:
-        conditions.append("ml_anomaly_level = %s")
-        params.append(ml_anomaly_level.strip().upper())
-
-    if ml_rule_agreement:
-        conditions.append("ml_rule_agreement = %s")
-        params.append(ml_rule_agreement.strip().upper())
-
-    # Must NOT be inside the ml_rule_agreement block.
-    search_order = ""
-    order_params = []
-
-    if search and search.strip():
-        search_value = _normalize_search_text(search)
-
-        searchable_columns = (
-            "work_description",
-            "activity_name",
-            "state_name",
-            "constituency",
-            "mp_name",
-            "ida_name",
-            "vendor_names",
-            "work_ids_text",
-        )
-
-        groups = _query_groups(search_value)
-
-        search_sql_parts = []
-        search_params = []
-
-        for group in groups:
-            variant_sql_parts = []
-
-            # Alternatives/synonyms inside a group are OR.
-            for variant in group:
-                token_sql_parts = []
-
-                # Tokens inside one variant are AND,
-                # but each token may match any searchable column.
-                for token in variant:
-                    field_checks = []
-
-                    for column in searchable_columns:
-                        field_checks.append(f"{column} ILIKE %s")
-                        search_params.append(f"%{token}%")
-
-                    token_sql_parts.append(
-                        "(" + " OR ".join(field_checks) + ")"
-                    )
-
-                if token_sql_parts:
-                    variant_sql_parts.append(
-                        "(" + " AND ".join(token_sql_parts) + ")"
-                    )
-
-            if variant_sql_parts:
-                search_sql_parts.append(
-                    "(" + " OR ".join(variant_sql_parts) + ")"
-                )
-
-        if search_sql_parts:
-            search_expression = " AND ".join(search_sql_parts)
-
-            if search_value.isdigit():
-                conditions.append(
-                    f"(project_id = %s OR ({search_expression}))"
-                )
-
-                params.append(int(search_value))
-                params.extend(search_params)
-
-                search_order = (
-                    "CASE WHEN project_id = %s THEN 0 ELSE 1 END,"
-                )
-                order_params.append(int(search_value))
-
-            else:
-                conditions.append(f"({search_expression})")
-                params.extend(search_params)
-
-        elif search_value.isdigit():
-            # Defensive fallback for exact project-ID search.
-            conditions.append("project_id = %s")
-            params.append(int(search_value))
-
-            search_order = (
-                "CASE WHEN project_id = %s THEN 0 ELSE 1 END,"
-            )
-            order_params.append(int(search_value))
-
-    where_sql = (
-        "WHERE " + " AND ".join(conditions)
-        if conditions
-        else ""
+    where_sql, params, search_order, order_params = _project_filter_sql(
+        risk=risk,
+        state=state,
+        category=category,
+        search=search,
+        ml_eligible=ml_eligible,
+        ml_is_anomaly=ml_is_anomaly,
+        ml_anomaly_level=ml_anomaly_level,
+        ml_rule_agreement=ml_rule_agreement,
+        rank_exact_project_id=True,
     )
 
     offset = (page - 1) * page_size
@@ -454,105 +455,15 @@ def iter_project_export(
     writer.writeheader()
     yield buffer.getvalue()
 
-    conditions = []
-    params = []
-
-    if risk:
-        conditions.append("risk_level = %s")
-        params.append(_risk_filter_value(risk))
-
-    if state:
-        conditions.append("state_name ILIKE %s")
-        params.append(f"%{state.strip()}%")
-
-    if category:
-        conditions.append("LOWER(work_category) = LOWER(%s)")
-        params.append(category.strip())
-
-    if ml_eligible is not None:
-        conditions.append("ml_eligible = %s")
-        params.append(ml_eligible)
-
-    if ml_is_anomaly is not None:
-        conditions.append("ml_is_anomaly = %s")
-        params.append(ml_is_anomaly)
-
-    if ml_anomaly_level:
-        conditions.append("ml_anomaly_level = %s")
-        params.append(ml_anomaly_level.strip().upper())
-
-    if ml_rule_agreement:
-        conditions.append("ml_rule_agreement = %s")
-        params.append(ml_rule_agreement.strip().upper())
-
-    # Keep export search semantics identical to project list/aggregates.
-    if search and search.strip():
-        search_value = _normalize_search_text(search)
-
-        searchable_columns = (
-            "work_description",
-            "activity_name",
-            "state_name",
-            "constituency",
-            "mp_name",
-            "ida_name",
-            "vendor_names",
-            "work_ids_text",
-        )
-
-        groups = _query_groups(search_value)
-
-        search_sql_parts = []
-        search_params = []
-
-        for group in groups:
-            variant_sql_parts = []
-
-            for variant in group:
-                token_sql_parts = []
-
-                for token in variant:
-                    field_checks = []
-
-                    for column in searchable_columns:
-                        field_checks.append(f"{column} ILIKE %s")
-                        search_params.append(f"%{token}%")
-
-                    token_sql_parts.append(
-                        "(" + " OR ".join(field_checks) + ")"
-                    )
-
-                if token_sql_parts:
-                    variant_sql_parts.append(
-                        "(" + " AND ".join(token_sql_parts) + ")"
-                    )
-
-            if variant_sql_parts:
-                search_sql_parts.append(
-                    "(" + " OR ".join(variant_sql_parts) + ")"
-                )
-
-        if search_sql_parts:
-            search_expression = " AND ".join(search_sql_parts)
-
-            if search_value.isdigit():
-                conditions.append(
-                    f"(project_id = %s OR ({search_expression}))"
-                )
-                params.append(int(search_value))
-                params.extend(search_params)
-            else:
-                conditions.append(f"({search_expression})")
-                params.extend(search_params)
-
-        elif search_value.isdigit():
-            conditions.append("project_id = %s")
-            params.append(int(search_value))
-
-    where_sql = (
-        "WHERE " + " AND ".join(conditions)
-        if conditions
-        else ""
+    where_sql, params, _, _ = _project_filter_sql(
+        risk=risk,
+        state=state,
+        category=category,
+        search=search,
+        ml_eligible=ml_eligible,
+        ml_is_anomaly=ml_is_anomaly,
+        ml_anomaly_level=ml_anomaly_level,
+        ml_rule_agreement=ml_rule_agreement,
     )
 
     with get_connection() as conn:
@@ -652,106 +563,15 @@ def get_project_aggregates(
 ) -> ProjectAggregatesResponse:
     """Aggregates the complete filtered PostgreSQL result set."""
 
-    conditions = []
-    params = []
-
-    if risk:
-        conditions.append("risk_level = %s")
-        params.append(_risk_filter_value(risk))
-
-    if state:
-        conditions.append("state_name ILIKE %s")
-        params.append(f"%{state.strip()}%")
-
-    if category:
-        conditions.append("LOWER(work_category) = LOWER(%s)")
-        params.append(category.strip())
-
-    if ml_eligible is not None:
-        conditions.append("ml_eligible = %s")
-        params.append(ml_eligible)
-
-    if ml_is_anomaly is not None:
-        conditions.append("ml_is_anomaly = %s")
-        params.append(ml_is_anomaly)
-
-    if ml_anomaly_level:
-        conditions.append("ml_anomaly_level = %s")
-        params.append(ml_anomaly_level.strip().upper())
-
-    if ml_rule_agreement:
-        conditions.append("ml_rule_agreement = %s")
-        params.append(ml_rule_agreement.strip().upper())
-
-    # Preserve the exact same search behavior as get_all_projects().
-    if search and search.strip():
-        search_value = _normalize_search_text(search)
-
-        searchable_columns = (
-            "work_description",
-            "activity_name",
-            "state_name",
-            "constituency",
-            "mp_name",
-            "ida_name",
-            "vendor_names",
-            "work_ids_text",
-        )
-
-        groups = _query_groups(search_value)
-
-        search_sql_parts = []
-        search_params = []
-
-        for group in groups:
-            variant_sql_parts = []
-
-            for variant in group:
-                token_sql_parts = []
-
-                for token in variant:
-                    field_checks = []
-
-                    for column in searchable_columns:
-                        field_checks.append(f"{column} ILIKE %s")
-                        search_params.append(f"%{token}%")
-
-                    token_sql_parts.append(
-                        "(" + " OR ".join(field_checks) + ")"
-                    )
-
-                if token_sql_parts:
-                    variant_sql_parts.append(
-                        "(" + " AND ".join(token_sql_parts) + ")"
-                    )
-
-            if variant_sql_parts:
-                search_sql_parts.append(
-                    "(" + " OR ".join(variant_sql_parts) + ")"
-                )
-
-        if search_sql_parts:
-            search_expression = " AND ".join(search_sql_parts)
-
-            if search_value.isdigit():
-                conditions.append(
-                    f"(project_id = %s OR ({search_expression}))"
-                )
-                params.append(int(search_value))
-                params.extend(search_params)
-
-            else:
-                conditions.append(f"({search_expression})")
-                params.extend(search_params)
-
-        elif search_value.isdigit():
-            conditions.append("project_id = %s")
-            params.append(int(search_value))
-
-    where_sql = (
-        "WHERE " + " AND ".join(conditions)
-        if conditions
-        else ""
+    where_sql, params, _, _ = _project_filter_sql(
+        risk=risk,
+        state=state,
+        category=category,
+        search=search,
+        ml_eligible=ml_eligible,
+        ml_is_anomaly=ml_is_anomaly,
+        ml_anomaly_level=ml_anomaly_level,
+        ml_rule_agreement=ml_rule_agreement,
     )
 
     with get_connection() as conn:
@@ -922,6 +742,132 @@ def get_project_aggregates(
         mlOnlyCount=totals["ml_only_count"],
         bothHighCount=totals["both_high_count"],
     )
+
+
+@lru_cache(maxsize=512)
+def get_factor_analytics(
+    factor: str,
+    risk: Optional[str] = None,
+    state: Optional[str] = None,
+    category: Optional[str] = None,
+    search: Optional[str] = None,
+    ml_eligible: Optional[bool] = None,
+    ml_is_anomaly: Optional[bool] = None,
+    ml_anomaly_level: Optional[str] = None,
+    ml_rule_agreement: Optional[str] = None,
+) -> FactorAnalyticsResponse:
+    """Aggregates one frozen detector's real score and flags in PostgreSQL."""
+    if factor not in _RISK_COMPONENTS:
+        raise ValueError(f"Unknown anomaly factor: {factor}")
+
+    where_sql, params, _, _ = _project_filter_sql(
+        risk=risk,
+        state=state,
+        category=category,
+        search=search,
+        ml_eligible=ml_eligible,
+        ml_is_anomaly=ml_is_anomaly,
+        ml_anomaly_level=ml_anomaly_level,
+        ml_rule_agreement=ml_rule_agreement,
+    )
+    # `factor` is interpolated only after the allow-list check above. Keeping the
+    # JSONB component intact avoids duplicating detector scores in another table.
+    raw_score_expression = (
+        f"(details->'{factor}'->>'score')::double precision"
+    )
+    # Expenditure V1 explicitly marks projects without expenditure as not
+    # applicable while emitting a compatibility score of zero. Exclude those
+    # rows from score averages/bands instead of presenting N/A as a low score.
+    score_expression = (
+        f"CASE WHEN has_expenditure IS TRUE THEN {raw_score_expression} END"
+        if factor == "expenditure"
+        else raw_score_expression
+    )
+    flagged_expression = (
+        f"COALESCE((details->'{factor}'->>'flagged')::boolean, FALSE)"
+    )
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT
+                    COALESCE(NULLIF(state_name, ''), 'Unknown') AS state_name,
+                    ROUND(AVG({score_expression})::numeric, 2) AS average_score,
+                    COUNT(*) FILTER (WHERE {flagged_expression}) AS flagged_projects,
+                    COUNT(*) AS total_projects
+                FROM projects
+                {where_sql}
+                GROUP BY COALESCE(NULLIF(state_name, ''), 'Unknown')
+                ORDER BY average_score DESC NULLS LAST, state_name
+                """,
+                params,
+            )
+            state_rows = cur.fetchall()
+
+            cur.execute(
+                f"""
+                SELECT
+                    COUNT(*) FILTER (
+                        WHERE {score_expression} >= %s
+                          AND {score_expression} < %s
+                    ) AS band_0,
+                    COUNT(*) FILTER (
+                        WHERE {score_expression} >= %s
+                          AND {score_expression} < %s
+                    ) AS band_1,
+                    COUNT(*) FILTER (
+                        WHERE {score_expression} >= %s
+                          AND {score_expression} < %s
+                    ) AS band_2,
+                    COUNT(*) FILTER (
+                        WHERE {score_expression} >= %s
+                          AND {score_expression} < %s
+                    ) AS band_3,
+                    COUNT({score_expression}) AS scored_projects,
+                    COUNT(*) FILTER (WHERE {score_expression} IS NULL) AS unscored_projects,
+                    COUNT(*) FILTER (
+                        WHERE {score_expression} < 0 OR {score_expression} > 100
+                    ) AS out_of_range_projects
+                FROM projects
+                {where_sql}
+                """,
+                [
+                    boundary
+                    for _, lower, upper in _FACTOR_SCORE_BANDS
+                    for boundary in (lower, upper)
+                ] + params,
+            )
+            distribution = cur.fetchone()
+
+    return FactorAnalyticsResponse(
+        factor=factor,
+        stateMetrics=[
+            {
+                "state": row["state_name"],
+                "averageScore": (
+                    float(row["average_score"])
+                    if row["average_score"] is not None
+                    else None
+                ),
+                "flaggedProjects": row["flagged_projects"],
+                "totalProjects": row["total_projects"],
+            }
+            for row in state_rows
+        ],
+        scoreBands=[
+            {
+                "label": band[0],
+                "projectCount": distribution[f"band_{index}"],
+            }
+            for index, band in enumerate(_FACTOR_SCORE_BANDS)
+        ],
+        scoredProjects=distribution["scored_projects"],
+        unscoredProjects=distribution["unscored_projects"],
+        outOfRangeProjects=distribution["out_of_range_projects"],
+    )
+
+
 @lru_cache(maxsize=1)
 def get_project_filter_options() -> ProjectFilterOptions:
     """Returns cached distinct filter values from PostgreSQL."""

@@ -3,7 +3,14 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import IndiaMap from '@react-map/india';
-import { buildIndiaMapModel, scoreToColor, selectMapState, sortMapRecords } from './heatMapModel.js';
+import {
+  buildIndiaMapModel,
+  getCanonicalStateId,
+  resolveMapSelection,
+  scoreToColor,
+  selectMapState,
+  sortMapRecords,
+} from './heatMapModel.js';
 import { INDIA_MAP_CALLOUT_IDS, INDIA_MAP_LABELS, getMapLabelByFeatureId } from './heatMapLabels.js';
 
 const backendRows = [
@@ -91,6 +98,54 @@ test('state click adapter selects the correct backend state and detail values', 
   assert.equal(detail.score, 44.35);
   assert.equal(detail.projectCount, 9842);
   assert.equal(selectMapState('IN-XX', model.byId, () => assert.fail()), null);
+});
+
+test('library state-name payloads resolve to canonical feature IDs', () => {
+  const model = buildIndiaMapModel([
+    { state: 'Jharkhand', score: 51, projectCount: 10 },
+    { state: 'Bihar', score: 42, projectCount: 20 },
+    { state: 'Tripura', score: 33, projectCount: 30 },
+    { state: 'Maharashtra', score: 44, projectCount: 40 },
+  ]);
+  assert.equal(resolveMapSelection('Jharkhand', model.byMapName).id, 'IN-JH');
+  assert.equal(resolveMapSelection('Bihar', model.byMapName).id, 'IN-BR');
+  assert.equal(resolveMapSelection('Tripura', model.byMapName).id, 'IN-TR');
+  assert.equal(resolveMapSelection('Maharashtra', model.byMapName).id, 'IN-MH');
+  assert.equal(getCanonicalStateId('Jharkhand'), 'IN-JH');
+});
+
+test('repeated real identity resolution keeps panel and CTA on the same record', () => {
+  const rows = [
+    { state: 'Jharkhand', score: 51, projectCount: 10 },
+    { state: 'Bihar', score: 42, projectCount: 20 },
+    { state: 'Tripura', score: 33, projectCount: 30 },
+    { state: 'Maharashtra', score: 44, projectCount: 40 },
+  ];
+  const model = buildIndiaMapModel(rows);
+  const sequence = ['Jharkhand', 'Bihar', 'Tripura', 'Maharashtra', 'Jharkhand'];
+  for (const libraryStateName of sequence) {
+    const mapped = resolveMapSelection(libraryStateName, model.byMapName);
+    const selected = selectMapState(mapped.id, model.byId);
+    assert.equal(selected.state, libraryStateName);
+    assert.equal(selected.backendState, libraryStateName);
+  }
+
+  const tripura = selectMapState(
+    resolveMapSelection('Tripura', model.byMapName).id,
+    model.byId,
+  );
+  assert.equal(tripura.backendState, 'Tripura');
+  assert.equal(selectMapState(getCanonicalStateId('Jharkhand'), model.byId).backendState, 'Jharkhand');
+  assert.equal(selectMapState(getCanonicalStateId('Bihar'), model.byId).backendState, 'Bihar');
+});
+
+test('map feature identity remains resolvable when risk rows are narrowed', () => {
+  const narrowed = buildIndiaMapModel([
+    { state: 'Tripura', score: 33, projectCount: 30 },
+  ]);
+  assert.equal(resolveMapSelection('Jharkhand', narrowed.byMapName).id, 'IN-JH');
+  assert.equal(resolveMapSelection('Bihar', narrowed.byMapName).id, 'IN-BR');
+  assert.equal(resolveMapSelection('Tripura', narrowed.byMapName).backendState, 'Tripura');
 });
 
 test('risk-score and state sorting remain available', () => {
